@@ -19,6 +19,22 @@ class Requirement(models.Model):
 
 class Purchase(models.Model):
     _inherit = 'purchase.order'
+    gt_dashboard_blocked = fields.Boolean(compute='_compute_gt_dashboard_blocked', search='_search_gt_dashboard_blocked', groups='gt_supplier_certificate_gate.group_user')
+
+    def _compute_gt_dashboard_blocked(self):
+        values = self._gt_evaluations(_limit=20000)
+        for order in self:
+            order.gt_dashboard_blocked = values[order.id]['status'] == 'blocked'
+
+    @api.model
+    def _search_gt_dashboard_blocked(self, operator, value):
+        if operator not in ('in', 'not in') or not isinstance(value, (list, tuple)) or any(type(v) is not bool for v in value):
+            return NotImplemented
+        service, companies, filters = self.env['gt.certificate.dashboard']._scope(self.env.context.get('gt_dashboard_filters', {}))
+        data = service._build(companies, filters)
+        positive = (True in value) if operator == 'in' else (True not in value)
+        return [('id', 'in' if positive else 'not in', list(data['blocked']))]
+
     gt_current_status = fields.Selection([('blocked', 'Blocked'), ('ready', 'Ready for Retry'), ('not_required', 'No Requirement')], compute='_compute_gt_current', string='Current Certificate Gate', groups='gt_supplier_certificate_gate.group_user')
     gt_current_details = fields.Text(compute='_compute_gt_current', string='Current Blocking Details', groups='gt_supplier_certificate_gate.group_user')
 

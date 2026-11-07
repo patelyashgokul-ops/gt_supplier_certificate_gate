@@ -186,7 +186,7 @@ class Dashboard(models.AbstractModel):
         if metric == 'blocked':
             if not data['can_purchase']:
                 raise AccessError('Purchase Order read permission is required.')
-            return {'type': 'ir.actions.act_window', 'name': 'Currently Blocked Purchase Orders', 'res_model': 'purchase.order', 'views': [(self.env.ref('gt_supplier_certificate_gate.view_blocked_list').id, 'list'), (False, 'form')], 'domain': [('id', 'in', list(data['blocked']))], 'context': context}
+            return {'type': 'ir.actions.act_window', 'name': 'Currently Blocked Purchase Orders', 'res_model': 'purchase.order', 'views': [(self.env.ref('gt_supplier_certificate_gate.view_blocked_list').id, 'list'), (False, 'form')], 'domain': [('gt_dashboard_blocked', '=', True)], 'context': dict(context, gt_dashboard_filters=f)}
         if metric in ('pending', 'overdue'):
             records = data[metric]
             return {'type': 'ir.actions.act_window', 'name': 'Pending Verification' if metric == 'pending' else 'Overdue Follow-ups', 'res_model': records._name, 'views': [(self.env.ref('gt_supplier_certificate_gate.view_pending_verification_list').id if metric == 'pending' else False, 'list'), (False, 'form')], 'domain': [('id', 'in', records.ids)], 'context': context}

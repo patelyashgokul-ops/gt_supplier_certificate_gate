@@ -237,3 +237,13 @@ class TestDashboard(TestPurchaseGate):
         self.assertNotIn('name="gt_current_details"', arch)
         with self.assertRaises(AccessError):
             self.dashboard(user=viewer)
+
+    def test_native_blocked_list_refreshes_existing_action(self):
+        self.requirement()
+        po = self.order()
+        action = self.drill('blocked', {'supplier_id': self.vendor.id})
+        self.assertEqual(self.action_records(action), po)
+        certificate = self.verified()
+        self.assertFalse(self.action_records(action))
+        certificate.with_user(self.reviewer).action_revoke('Issuer withdrew scope')
+        self.assertEqual(self.action_records(action), po)
