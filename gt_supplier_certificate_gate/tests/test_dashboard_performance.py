@@ -27,7 +27,7 @@ class TestDashboardPerformance(TestDashboard):
         self.requirement(company=self.b)
         foreign_orders = self.env['purchase.order'].with_company(self.b).create([{'company_id': self.b.id, 'partner_id': suppliers[i].id, 'order_line': [Command.create({'product_id': self.product.id, 'name': 'Private B demand', 'product_qty': 1})]} for i in range(5)])
         work = self.env['gt.certificate.renewal'].search([('company_id', '=', self.a.id), ('supplier_id', 'in', suppliers.ids)])
-        work[:25].write({'due_date': str(today - timedelta(days=1))})
+        work[:25].with_user(self.manager).write({'due_date': str(today - timedelta(days=1))})
         self.env.flush_all()
         self.assertEqual(self.env['mail.activity'].search_count([('gt_renewal_id', 'in', work.ids), ('active', '=', True)]), 50)
         self.assertEqual(len(certificates), 1000)

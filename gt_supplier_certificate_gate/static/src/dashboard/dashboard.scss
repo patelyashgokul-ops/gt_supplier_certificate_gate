@@ -1,6 +1,6 @@
 .gt-dashboard {
-    --gt-ink: var(--body-color, var(--bs-body-color, #182b49)); --gt-surface: var(--o-view-background-color, var(--bs-body-bg, #fff));
-    color: var(--gt-ink); background: var(--o-webclient-background-color, #f3f6fa);
+    --gt-ink: #{$o-main-text-color}; --gt-surface: #{$o-view-background-color};
+    color: var(--gt-ink); background: $o-webclient-background-color;
     padding: clamp(18px, 2.5vw, 36px); overflow: auto; height: 100%;
     .gt-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:26px; }
     .gt-brand { font-size:11px; font-weight:800; letter-spacing:1.3px; color:#3565a4; span { color:var(--body-color, #59687e); font-weight:500; } }
@@ -48,4 +48,9 @@
     .gt-tone-warning .gt-kpi-icon { color:#9c6410; background:rgba(171,118,30,.1); }
     .gt-filter-toggle { display:none; margin-bottom:16px; min-height:40px; }
     @media(max-width:480px) { .gt-filter-toggle { display:inline-block; } .gt-filters:not(.gt-filters-open) { display:none; } }
+}
+
+.gt-dashboard {
+    .gt-card-link, .gt-record-link, .gt-brand { color: $link-color; }
+    .gt-brand span, .gt-badge, .gt-badge.gt-overdue, .gt-status { color: var(--gt-ink); }
 }
