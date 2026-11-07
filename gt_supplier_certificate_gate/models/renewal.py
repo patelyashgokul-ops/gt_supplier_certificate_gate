@@ -175,7 +175,7 @@ class Renewal(models.Model):
         lead = policy.lead_days if policy else 30
         versions = self.env['gt.supplier.certificate'].search([('company_id', '=', company.id), ('supplier_id', '=', supplier.id), ('type_id', '=', kind.id)])
         current = versions.filtered(lambda c: c.is_effective(today, company.id, supplier.id, kind.id))
-        expiry = max(current.mapped('valid_until')) if current else max(versions.filtered(lambda c: c.state in ('verified', 'revoked')).mapped('valid_until'), default=False)
+        expiry = max(current.mapped('valid_until')) if current else max(versions.filtered(lambda c: c.state in ('verified', 'revoked') and c.valid_from <= today).mapped('valid_until'), default=False)
         relevant = bool(self.env['gt.certificate.requirement'].search_count([('company_id', '=', company.id), ('type_id', '=', kind.id), ('active', '=', True)], limit=1))
         covered = bool(current and expiry > today + timedelta(days=lead))
         state = 'cancelled' if not relevant else 'covered' if covered else 'review' if versions.filtered(lambda c: c.state == 'pending') else 'future' if versions.filtered(lambda c: c.state == 'verified' and c.valid_from > today) else 'supplier'

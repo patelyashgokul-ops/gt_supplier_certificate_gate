@@ -117,6 +117,7 @@ class TestRenewals(TestPurchaseGate):
         self.assertEqual(work.state, 'supplier')
         future = self.verified(valid_from='2026-11-10', valid_until='2027-11-10')
         self.assertEqual(work.state, 'future')
+        self.assertFalse(work.expiry)
         self.assert_blocked(self.order(), 'not yet effective')
         with patch.object(type(self.a), '_gt_today', lambda company: date(2026, 11, 10)):
             self.sync()
