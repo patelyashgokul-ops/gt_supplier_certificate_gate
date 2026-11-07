@@ -256,6 +256,37 @@ class Activity(models.Model):
     gt_renewal_id = fields.Many2one('gt.certificate.renewal', ondelete='restrict', copy=False, index=True)
     _gt_open_unique = models.UniqueIndex('(gt_renewal_id) WHERE active AND gt_renewal_id IS NOT NULL', 'An active renewal Activity already exists.')
 
+    def _gt_check_actor(self):
+        if self.env.su:
+            return
+        manager = self.env.user.has_group('gt_supplier_certificate_gate.group_manager')
+        for work in self.gt_renewal_id:
+            work.check_access('read')
+            if not manager and work.owner_id != self.env.user:
+                raise AccessError('Only the renewal owner or a Certificate Manager may manage this Activity.')
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if not self.env.su:
+            manager = self.env.user.has_group('gt_supplier_certificate_gate.group_manager')
+            for vals in vals_list:
+                work_id = vals.get('gt_renewal_id') or self.env.context.get('default_gt_renewal_id')
+                if work_id:
+                    work = self.env['gt.certificate.renewal'].browse(work_id)
+                    work.check_access('read')
+                    if not manager and work.owner_id != self.env.user:
+                        raise AccessError('Only the renewal owner or a Certificate Manager may schedule this Activity.')
+        return super().create(vals_list)
+
+    def unlink(self):
+        self._gt_check_actor()
+        return super().unlink()
+
+    def action_feedback(self, feedback=False, attachment_ids=None):
+        # Authorize before native mail posts completion feedback through sudo.
+        self._gt_check_actor()
+        return super().action_feedback(feedback=feedback, attachment_ids=attachment_ids)
+
     @api.constrains('gt_renewal_id', 'res_model_id', 'res_id', 'user_id')
     def _check_gt_target(self):
         for activity in self.filtered('gt_renewal_id'):
@@ -265,6 +296,7 @@ class Activity(models.Model):
                 raise ValidationError('Renewal Activity must match its authorized work record and owner.')
 
     def write(self, vals):
+        self._gt_check_actor()
         if 'gt_renewal_id' in vals:
             raise AccessError('Renewal Activity identity is immutable.')
         result = super().write(vals)

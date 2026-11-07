@@ -261,3 +261,28 @@ class TestDashboard(TestPurchaseGate):
         result = self.dashboard({'owner_id': 'unassigned'}, user=self.manager)
         self.assertEqual(result['requirements'][0]['owner'], 'Unassigned')
         self.assertNotIn(owner.id, [x['id'] for x in result['options']['owners']])
+
+    def test_nonowner_cannot_hide_overdue_work_via_native_activity_rpc_paths(self):
+        self.requirement()
+        self.env['gt.certificate.policy'].create({'company_id': self.a.id, 'owner_id': self.manager.id})
+        self.order()
+        work = self.env['gt.certificate.renewal']._sync_key(self.a, self.vendor, self.kind)
+        work.with_user(self.manager).write({'due_date': '2026-11-03'})
+        activity = self.env['mail.activity'].search([('gt_renewal_id', '=', work.id), ('active', '=', True)])
+        with self.assertRaises(AccessError), self.cr.savepoint():
+            activity.with_user(self.buyer).write({'date_deadline': '2027-01-01'})
+        with self.assertRaises(AccessError), self.cr.savepoint():
+            activity.with_user(self.buyer).action_feedback('Unauthorized completion')
+        with self.assertRaises(AccessError), self.cr.savepoint():
+            activity.with_user(self.buyer).unlink()
+        with self.assertRaises(AccessError), self.cr.savepoint():
+            self.env['mail.activity'].with_user(self.buyer).create({'gt_renewal_id': work.id, 'res_model_id': self.env['ir.model']._get_id(work._name), 'res_id': work.id, 'user_id': self.manager.id, 'activity_type_id': activity.activity_type_id.id, 'date_deadline': '2027-01-01'})
+        self.assertEqual(self.dashboard()['kpis']['overdue'], 1)
+        self.assertEqual(activity.date_deadline, date(2026, 11, 3))
+        owner = self.make_user('dashboard_activity_owner', 'group_user')
+        work.with_user(self.manager).write({'owner_id': owner.id})
+        activity.with_user(owner).write({'date_deadline': '2026-11-02'})
+        activity.with_user(owner).action_feedback('Requested new certificate')
+        self.assertEqual(self.dashboard()['kpis']['overdue'], 0)
+        self.assertEqual(self.dashboard()['kpis']['blocked'], 1)
+        self.assertEqual(work.state, 'supplier')
