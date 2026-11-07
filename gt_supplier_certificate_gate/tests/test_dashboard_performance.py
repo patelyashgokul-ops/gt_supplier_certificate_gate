@@ -11,7 +11,7 @@ from .test_lifecycle import pdf_content
 _logger = logging.getLogger(__name__)
 
 
-@tagged('post_install', '-at_install', 'gt_phase5_performance')
+@tagged('post_install', '-at_install', 'gt_phase5_performance', '-gt_phase5_backend', '-standard')
 class TestDashboardPerformance(TestDashboard):
     def test_representative_sme_dataset_and_batch_queries(self):
         self.requirement()

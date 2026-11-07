@@ -5,7 +5,7 @@ from odoo.tests import tagged
 from .test_purchase_gate import TestPurchaseGate
 
 
-@tagged('post_install', '-at_install', '-standard', 'gt_phase5_stock')
+@tagged('post_install', '-at_install', '-standard', 'gt_phase5_stock', '-gt_phase1', '-gt_phase3')
 class TestStockCompatibility(TestPurchaseGate):
     def test_certificate_gate_prevents_receipts_until_compliant(self):
         self.assertIn('picking_ids', self.env['purchase.order']._fields, 'Install native purchase_stock on the disposable test database for this explicit integration tag.')

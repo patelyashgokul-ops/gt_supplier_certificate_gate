@@ -40,3 +40,12 @@
     @media (max-width:800px) { .gt-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .gt-analytics, .gt-worklists { grid-template-columns:1fr; } .gt-heading { align-items:flex-start; } .gt-heading p { font-size:12px; } .gt-freshness .gt-scope-note { margin-left:0; width:100%; } }
     @media (max-width:480px) { padding:14px; .gt-heading { flex-wrap:wrap; } .gt-brand span { display:block; margin-top:5px; } .gt-kpis { grid-template-columns:1fr; } .gt-kpi { padding:16px; } .gt-panel { padding:16px; } .gt-panel-title { flex-wrap:wrap; } .gt-bar-row { grid-template-columns:120px minmax(12px,1fr) 20px; gap:7px; font-size:10px; } .gt-filters label { flex-basis:100%; } footer span { display:none; } }
 }
+
+.gt-dashboard {
+    .gt-guide h2 { color: #f6f9fc; }
+    .gt-kpi-icon { width:32px; height:32px; padding:6px; flex-shrink:0; color:#376da8; background:rgba(53,101,164,.08); border-radius:7px; }
+    .gt-tone-danger .gt-kpi-icon { color:#ad3545; background:rgba(173,53,69,.08); }
+    .gt-tone-warning .gt-kpi-icon { color:#9c6410; background:rgba(171,118,30,.1); }
+    .gt-filter-toggle { display:none; margin-bottom:16px; min-height:40px; }
+    @media(max-width:480px) { .gt-filter-toggle { display:inline-block; } .gt-filters:not(.gt-filters-open) { display:none; } }
+}

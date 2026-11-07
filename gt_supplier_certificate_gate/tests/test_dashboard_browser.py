@@ -57,6 +57,13 @@ class TestDashboardBrowser(HttpCase):
             browser._websocket_request('Runtime.evaluate', params={'expression': "document.querySelector('.gt-refresh').focus()"})
             browser._websocket_request('Input.dispatchKeyEvent', params={'type': 'keyDown', 'key': 'Tab', 'code': 'Tab', 'windowsVirtualKeyCode': 9})
             browser._websocket_request('Input.dispatchKeyEvent', params={'type': 'keyUp', 'key': 'Tab', 'code': 'Tab', 'windowsVirtualKeyCode': 9})
+            focused = browser._websocket_request('Runtime.evaluate', params={'expression': "document.activeElement.classList.contains('gt-filter-toggle')", 'returnByValue': True})['result']['value']
+            self.assertTrue(focused)
+            for kind in ('keyDown', 'keyUp'):
+                browser._websocket_request('Input.dispatchKeyEvent', params={'type': kind, 'key': 'Enter', 'code': 'Enter', 'windowsVirtualKeyCode': 13})
+            browser._websocket_request('Runtime.evaluate', params={'expression': 'new Promise(r => setTimeout(r, 100))', 'awaitPromise': True})
+            for kind in ('keyDown', 'keyUp'):
+                browser._websocket_request('Input.dispatchKeyEvent', params={'type': kind, 'key': 'Tab', 'code': 'Tab', 'windowsVirtualKeyCode': 9})
             focus = browser._websocket_request('Runtime.evaluate', params={'expression': 'document.activeElement.name', 'returnByValue': True})['result']['value']
             self.assertEqual(focus, 'company_id')
             (folder / 'responsive-results.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')

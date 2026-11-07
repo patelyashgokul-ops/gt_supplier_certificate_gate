@@ -8,7 +8,7 @@ from odoo.tests import tagged
 from .test_purchase_gate import TestPurchaseGate
 
 
-@tagged('post_install', '-at_install', 'gt_phase5_backend')
+@tagged('post_install', '-at_install', 'gt_phase5_backend', '-gt_phase1', '-gt_phase3')
 class TestDashboard(TestPurchaseGate):
     @classmethod
     def setUpClass(cls):

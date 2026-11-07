@@ -9,17 +9,17 @@ export class CertificateDashboard extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.state = proxy({ loading: true, error: false, data: null, filters: { company_id: 0, owner_id: 0, supplier_id: 0, type_id: 0, category_id: 0, window: "all", status: "all" } });
+        this.state = proxy({ loading: true, error: false, data: null, showFilters: false, filters: { company_id: 0, owner_id: 0, supplier_id: 0, type_id: 0, category_id: 0, window: "all", status: "all" } });
         this.request = 0;
         onWillStart(() => this.load());
     }
     get cards() {
         return [
-            { key: "blocked", label: "Blocked Purchase Orders", icon: "fa-shopping-cart", tone: "danger", unit: "Distinct current RFQs / approvals" },
-            { key: "expiring", label: "Expiring Certificates", icon: "fa-hourglass-half", tone: "warning", unit: "Coverage relationships · next 30 days" },
-            { key: "missing", label: "Missing / Expired Requirements", icon: "fa-shield", tone: "danger", unit: "Uncovered demand · includes pending/future" },
-            { key: "pending", label: "Pending Verification", icon: "fa-file-text-o", tone: "primary", unit: "Submitted documents awaiting review" },
-            { key: "overdue", label: "Overdue Follow-ups", icon: "fa-calendar-check-o", tone: "warning", unit: "Open Activities past their deadline" },
+            { key: "blocked", label: "Blocked Purchase Orders", path: "M2 3h3l3 12h10l3-8H6 M9 20h.01 M18 20h.01", tone: "danger", unit: "Distinct current RFQs / approvals" },
+            { key: "expiring", label: "Expiring Certificates", path: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7v5l3 2", tone: "warning", unit: "Coverage relationships · next 30 days" },
+            { key: "missing", label: "Missing / Expired Requirements", path: "M12 3 20 6v6c0 5-8 9-8 9s-8-4-8-9V6Z M12 8v5 M12 16v1", tone: "danger", unit: "Uncovered demand · includes pending/future" },
+            { key: "pending", label: "Pending Verification", path: "M6 2h8l4 4v16H6Z M14 2v5h4 M9 12h6 M9 16h4", tone: "primary", unit: "Submitted documents awaiting review" },
+            { key: "overdue", label: "Overdue Follow-ups", path: "M5 5h14v16H5Z M8 2v6 M16 2v6 M5 10h14 M12 13v4 M12 19v.1", tone: "warning", unit: "Open Activities past their deadline" },
         ];
     }
     async load() {
