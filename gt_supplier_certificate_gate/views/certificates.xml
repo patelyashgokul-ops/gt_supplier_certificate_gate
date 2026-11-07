@@ -11,9 +11,9 @@
 <record id="view_certificate_form" model="ir.ui.view"><field name="name">gt.supplier.certificate.form</field><field name="model">gt.supplier.certificate</field><field name="arch" type="xml"><form><sheet><group><field name="reference"/><field name="company_id"/><field name="supplier_id"/><field name="type_id"/><field name="valid_from"/><field name="valid_until"/><field name="owner_id"/><field name="state"/><field name="reviewer_id"/><field name="reviewed_at"/></group></sheet></form></field></record>
 <record id="view_certificate_search" model="ir.ui.view"><field name="name">gt.supplier.certificate.search</field><field name="model">gt.supplier.certificate</field><field name="arch" type="xml"><search><field name="reference"/><field name="company_id"/><field name="supplier_id"/><field name="type_id"/><field name="owner_id"/><field name="state"/><field name="reviewer_id"/></search></field></record>
 <record id="action_certificate" model="ir.actions.act_window"><field name="name">Supplier Certificates</field><field name="res_model">gt.supplier.certificate</field><field name="view_mode">list,form</field></record>
-<menuitem id="menu_root" name="Supplier Certificates" sequence="5" groups="group_user"/>
+<menuitem id="menu_root" name="Supplier Certificates" sequence="5" groups="gt_supplier_certificate_gate.group_user"/>
 <menuitem id="menu_certificates" name="Certificates" parent="menu_root" action="action_certificate" sequence="10"/>
 <menuitem id="menu_requirements" name="Certificate Requirements" parent="menu_root" action="action_requirement" sequence="20"/>
-<menuitem id="menu_config" name="Configuration" parent="menu_root" groups="group_manager" sequence="90"/>
+<menuitem id="menu_config" name="Configuration" parent="menu_root" groups="gt_supplier_certificate_gate.group_manager" sequence="90"/>
 <menuitem id="menu_types" name="Certificate Types" parent="menu_config" action="action_type"/>
 </odoo>

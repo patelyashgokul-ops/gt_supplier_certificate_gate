@@ -118,10 +118,13 @@ class TestRenewals(TestPurchaseGate):
         future = self.verified(valid_from='2026-11-10', valid_until='2027-11-10')
         self.assertEqual(work.state, 'future')
         self.assertFalse(work.expiry)
-        self.assert_blocked(self.order(), 'not yet effective')
+        po = self.order()
+        self.assert_blocked(po, 'not yet effective')
         with patch.object(type(self.a), '_gt_today', lambda company: date(2026, 11, 10)):
-            self.sync()
+            self.env['gt.certificate.renewal']._refresh_company(self.a)
             self.assertEqual(work.state, 'covered')
+            self.assertEqual(po.gt_check_result, 'ready')
+            self.assertEqual(po.state, 'draft')
         with patch.object(type(self.a), '_gt_today', lambda company: date(2027, 11, 1)):
             next_cycle = self.sync()
             self.assertNotEqual(next_cycle.id, work.id)
@@ -219,4 +222,9 @@ class TestRenewals(TestPurchaseGate):
             policy.with_user(self.manager).write({'order_cursor': 999})
         with self.assertRaises(AccessError):
             self.env['gt.certificate.policy'].with_user(self.manager).create({'company_id': self.b.id, 'order_cursor': 999})
+        view = self.env.ref('gt_supplier_certificate_gate.view_renewal_form')
+        manager_arch = self.env['gt.certificate.renewal'].with_user(self.manager).get_view(view.id, 'form')['arch']
+        buyer_arch = self.env['gt.certificate.renewal'].with_user(self.buyer).get_view(view.id, 'form')['arch']
+        self.assertIn('name="action_refresh"', manager_arch)
+        self.assertNotIn('name="action_refresh"', buyer_arch)
         self.assertEqual(self.env['gt.certificate.renewal'].search_count([('company_id', '=', self.a.id), ('state', 'not in', ['covered','cancelled'])]), 2)

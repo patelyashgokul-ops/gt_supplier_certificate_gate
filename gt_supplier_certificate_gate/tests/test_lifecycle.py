@@ -178,6 +178,16 @@ class TestDownloads(LifecycleFixtures, HttpCase):
 
 @tagged('post_install', '-at_install', 'gt_phase2')
 class TestLifecycleHardening(LifecycleFixtures, TestFoundation):
+    def test_role_buttons_render_correctly(self):
+        form = self.env.ref('gt_supplier_certificate_gate.view_certificate_form')
+        reviewer = self.env['gt.supplier.certificate'].with_user(self.reviewer).get_view(form.id, 'form')['arch']
+        buyer = self.env['gt.supplier.certificate'].with_user(self.buyer).get_view(form.id, 'form')['arch']
+        self.assertIn('name="action_approve"', reviewer)
+        self.assertIn('name="action_evidence"', reviewer)
+        self.assertNotIn('name="action_approve"', buyer)
+        self.assertNotIn('name="action_evidence"', buyer)
+        self.assertIn('name="action_upload"', buyer)
+
     def test_file_policy_and_related_orm_paths(self):
         import hashlib
         from odoo.tools.pdf import PdfWriter
