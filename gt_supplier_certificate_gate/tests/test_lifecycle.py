@@ -175,3 +175,44 @@ class TestDownloads(LifecycleFixtures, HttpCase):
         response = self.url_open('/web/content/gt.certificate.evidence/%s/data?download=true' % foreign.evidence_id.id)
         self.assertIn(response.status_code, (403, 404))
         self.assertNotIn(b'%PDF-', response.content)
+
+@tagged('post_install', '-at_install', 'gt_phase2')
+class TestLifecycleHardening(LifecycleFixtures, TestFoundation):
+    def test_file_policy_and_related_orm_paths(self):
+        import hashlib
+        from odoo.tools.pdf import PdfWriter
+        for encrypted in (False, True):
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            if encrypted:
+                writer.encrypt('secret')
+            else:
+                writer.add_js('app.alert("active")')
+            output = io.BytesIO()
+            writer.write(output)
+            with self.assertRaises(ValidationError), self.cr.savepoint():
+                self.env['gt.certificate.upload'].with_user(self.manager).create({'certificate_id': self.cert.id, 'data': base64.b64encode(output.getvalue()).decode()})
+        for content in ('not base64 !', base64.b64encode(b'%PDF-1.4\n' + b'0' * (10 * 1024 * 1024) + b'\n%%EOF').decode()):
+            with self.assertRaises(ValidationError), self.cr.savepoint():
+                self.env['gt.certificate.upload'].with_user(self.manager).create({'certificate_id': self.cert.id, 'data': content})
+        self.submit()
+        raw = base64.b64decode(pdf_content())
+        self.assertEqual(self.cert.evidence_id.sha256, hashlib.sha256(raw).hexdigest())
+        self.buyer.group_ids = [Command.link(self.env.ref('base.group_allow_export').id)]
+        with self.assertRaises(AccessError):
+            self.cert.with_user(self.buyer).mapped('evidence_id.data')
+        with self.assertRaises(AccessError):
+            self.cert.with_user(self.buyer).export_data(['evidence_id/data'])
+
+    def test_company_business_date_ignores_client_context(self):
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+        instant = datetime(2026, 11, 4, 0, 30, tzinfo=timezone.utc)
+        with patch('odoo.addons.gt_supplier_certificate_gate.models.lifecycle.datetime') as clock:
+            clock.now.side_effect = lambda zone: instant.astimezone(zone)
+            self.a.partner_id.tz = 'America/Los_Angeles'
+            self.assertEqual(self.a.with_context(tz='Asia/Kolkata', date='2000-01-01')._gt_today(), date(2026, 11, 3))
+            self.a.partner_id.tz = 'Asia/Kolkata'
+            self.assertEqual(self.a._gt_today(), date(2026, 11, 4))
+            self.a.partner_id.tz = False
+            self.assertEqual(self.a._gt_today(), date(2026, 11, 4))

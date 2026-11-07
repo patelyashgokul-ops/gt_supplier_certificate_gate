@@ -188,3 +188,34 @@ class TestRenewals(TestPurchaseGate):
             for kind in ('list', 'form'):
                 view = self.env.ref('gt_supplier_certificate_gate.view_' + key + '_' + kind)
                 self.env[model].with_user(self.manager).get_view(view.id, kind)
+
+    def test_company_membership_loss_hides_assigned_activity(self):
+        self.requirement()
+        self.policy()
+        owner = self.make_user('dualowner', 'group_user')
+        owner.company_ids = [Command.set((self.a | self.b).ids)]
+        work = self.sync()
+        work.with_user(self.manager).write({'owner_id': owner.id})
+        activity = self.active_activities(work)
+        owner.write({'company_id': self.b.id, 'company_ids': [Command.set(self.b.ids)]})
+        with self.assertRaises(AccessError):
+            work.with_user(owner).read(['supplier_id'])
+        with self.assertRaises(AccessError):
+            activity.with_user(owner).read(['note'])
+        self.sync()
+        self.assertFalse(work.owner_id)
+        self.assertFalse(self.active_activities(work))
+
+    def test_separate_types_owners_policy_and_company_cycles(self):
+        self.requirement()
+        self.requirement(kind=self.other)
+        policy = self.policy()
+        one = self.sync()
+        two = self.sync(kind=self.other)
+        self.assertNotEqual(one.id, two.id)
+        self.assertEqual(len(self.active_activities(one) | self.active_activities(two)), 2)
+        with self.assertRaises(AccessError):
+            policy.with_user(self.manager).write({'order_cursor': 999})
+        with self.assertRaises(AccessError):
+            self.env['gt.certificate.policy'].with_user(self.manager).create({'company_id': self.b.id, 'order_cursor': 999})
+        self.assertEqual(self.env['gt.certificate.renewal'].search_count([('company_id', '=', self.a.id), ('state', 'not in', ['covered','cancelled'])]), 2)

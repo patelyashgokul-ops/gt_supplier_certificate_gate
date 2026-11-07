@@ -4,7 +4,7 @@ import logging
 _logger = logging.getLogger(__name__)
 from psycopg2 import IntegrityError
 from odoo import api, fields, models
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, ConcurrencyError, UserError, ValidationError
 
 
 class Policy(models.Model):
@@ -190,10 +190,14 @@ class Renewal(models.Model):
             try:
                 with self.env.cr.savepoint():
                     work = super(Renewal, self).create(vals)
-            except IntegrityError:
+            except IntegrityError as exc:
+                if exc.diag.constraint_name != 'gt_certificate_renewal_open_unique':
+                    raise
                 work = self.search([('company_id', '=', company.id), ('supplier_id', '=', supplier.id), ('type_id', '=', kind.id), ('state', 'not in', ['covered', 'cancelled'])], limit=1)
                 if not work:
-                    raise
+                    # Repeatable-read snapshots may not see the competing row.
+                    # Odoo's bounded request retry must begin a fresh transaction.
+                    raise ConcurrencyError('Concurrent renewal cycle; retry transaction.') from exc
         work._lock_work()
         updates = {'state': state, 'expiry': expiry}
         if work.owner_id and (not work.owner_id.active or work.owner_id.share or company not in work.owner_id.company_ids or not work.owner_id.has_group('gt_supplier_certificate_gate.group_user')):
