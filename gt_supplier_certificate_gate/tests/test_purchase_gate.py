@@ -38,6 +38,7 @@ class TestPurchaseGate(LifecycleFixtures, TestFoundation):
     def test_missing_and_retry_renewal(self):
         self.requirement()
         po = self.order()
+        self.cert.unlink()
         self.assert_blocked(po, 'Missing')
         self.verified(valid_from='2025-01-01', valid_until='2026-10-31')
         self.assert_blocked(po, 'expired on 2026-10-31')
@@ -90,7 +91,7 @@ class TestPurchaseGate(LifecycleFixtures, TestFoundation):
         self.requirement()
         office = self.env['product.product'].create({'name': 'Office Paper', 'type': 'consu'})
         po = self.order([(self.product, 1), (office, 1), (self.service, 1), (self.product, 0)])
-        po.order_line = [Command.create({'display_type': 'line_section', 'name': 'Section'})]
+        po.order_line = [Command.create({'display_type': 'line_section', 'name': 'Section', 'product_qty': 0})]
         result = po._gt_evaluate()
         self.assertEqual(len(result['failures']), 2)
         text = po._gt_format(result)
@@ -149,7 +150,7 @@ class TestPurchaseGate(LifecycleFixtures, TestFoundation):
             self.order(state='purchase')
         with self.assertRaises(UserError):
             self.order().write({'state': 'purchase', 'order_line': [Command.create({'product_id': self.product.id, 'product_qty': 1, 'name': 'Attack'})]})
-        po.write({'notes': 'Harmless draft edit'})
+        po.write({'note': 'Harmless draft edit'})
         po.button_cancel()
         po.button_draft()
         self.assertEqual(po.state, 'draft')
