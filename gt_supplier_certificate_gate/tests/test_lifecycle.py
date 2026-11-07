@@ -121,6 +121,7 @@ class TestLifecycle(LifecycleFixtures, TestFoundation):
         self.submit(foreign, self.manager.with_context(allowed_company_ids=[self.b.id]))
         evidence = c.evidence_id
         for user in (self.buyer, self.manager):
+            user.group_ids = [Command.link(self.env.ref('base.group_allow_export').id)]
             with self.assertRaises(AccessError):
                 evidence.with_user(user).read(['data'])
             with self.assertRaises(AccessError):
@@ -155,7 +156,8 @@ class TestDownloads(LifecycleFixtures, HttpCase):
     def test_actual_content_routes(self):
         self.submit()
         evidence = self.cert.evidence_id
-        urls = ['/web/content/gt.certificate.evidence/%s/data?download=true' % evidence.id, '/web/content/gt.certificate.evidence/%s/data' % evidence.id, '/web/content?model=gt.certificate.evidence&id=%s&field=data' % evidence.id]
+        legacy = self.env['ir.attachment'].create({'name': 'restricted.pdf', 'raw': pdf_content(), 'res_model': 'gt.certificate.evidence', 'res_id': evidence.id, 'res_field': 'data', 'public': False})
+        urls = ['/web/content/%s?download=true' % legacy.id, '/web/content/gt.certificate.evidence/%s/data?download=true' % evidence.id, '/web/content/gt.certificate.evidence/%s/data' % evidence.id, '/web/content?model=gt.certificate.evidence&id=%s&field=data' % evidence.id]
         for user in (self.buyer, self.manager):
             self.authenticate(user.login, 'gt-test-password')
             for url in urls:
@@ -163,7 +165,7 @@ class TestDownloads(LifecycleFixtures, HttpCase):
                 self.assertIn(response.status_code, (403, 404))
                 self.assertNotIn(b'%PDF-', response.content)
         self.authenticate(self.reviewer.login, 'gt-test-password')
-        response = self.url_open(urls[0])
+        response = self.url_open(urls[1])
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.content.startswith(b'%PDF-'))
         self.assertIn('attachment', response.headers.get('Content-Disposition', ''))
