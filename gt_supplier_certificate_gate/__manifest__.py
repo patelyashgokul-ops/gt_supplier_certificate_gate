@@ -5,6 +5,7 @@
  'category': 'Supply Chain/Purchase',
  'sequence': 5,
  'summary': 'Secure supplier certificates, purchasing controls and live compliance dashboard',
+ 'live_demo_url': 'https://mail.google.com/mail/?view=cm&fs=1&to=patelyash.gokul%40gmaiol.com&su=Schedule%20Demo%20-%20Supplier%20Certificate%20Gate',
  'depends': ['purchase', 'mail'],
  'data': ['security/groups.xml',
           'security/ir.access.csv',
