@@ -49,7 +49,7 @@ class Dashboard(models.AbstractModel):
         elif owner:
             user = scoped.env['res.users'].browse(owner)
             user.check_access('read')
-            if not user.exists() or not user.active or user.share or not (user.company_ids & companies):
+            if not user.exists() or not user.active or user.share or not (user.company_ids & companies) or not user.has_group('gt_supplier_certificate_gate.group_user'):
                 raise AccessError('Renewal owner is not authorized for the selected companies.')
         if f.get('window', 'all') not in ('all', '7', '30', '60', 'policy') or f.get('status', 'all') not in ('all', *(s for s, label in STATUS)):
             raise ValidationError('Unsupported reporting window or status.')
@@ -73,6 +73,9 @@ class Dashboard(models.AbstractModel):
         works = self._bounded('gt.certificate.renewal', [('company_id', 'in', company_ids), ('state', 'not in', ['covered', 'cancelled'])], ['company_id', 'supplier_id', 'type_id', 'owner_id', 'due_date', 'state', 'expiry'])
         policies = self.env['gt.certificate.policy'].search([('company_id', 'in', company_ids)])
         policy_map = {p.company_id.id: p for p in policies}
+        owner_group = self.env.ref('gt_supplier_certificate_gate.group_user')
+        eligible_owners = self.env['res.users'].search_fetch([('active', '=', True), ('share', '=', False), ('company_ids', 'in', company_ids), ('all_group_ids', 'in', owner_group.ids)], ['name', 'company_ids', 'active', 'share'])
+        eligible_owner_ids = set(eligible_owners.ids)
         days = {c.id: c._gt_today() for c in companies}
         can_purchase = self.env['purchase.order'].has_access('read')
         order_domain = [('company_id', 'in', company_ids), ('state', 'in', ['draft', 'sent', 'to approve'])]
@@ -132,8 +135,8 @@ class Dashboard(models.AbstractModel):
                 status = 'future' if cs.filtered(lambda c: c.state == 'verified' and c.valid_from > today) else 'pending' if cs.filtered(lambda c: c.state == 'pending') else 'expired' if cs.filtered(lambda c: c.state == 'verified' and c.valid_until < today) else 'revoked' if cs.filtered(lambda c: c.state == 'revoked') else 'rejected' if cs.filtered(lambda c: c.state == 'rejected') else 'draft' if cs else 'missing'
                 expiry = max(cs.filtered(lambda c: c.state == 'verified' and c.valid_until < today).mapped('valid_until'), default=False)
             work = work_map.get(key, works.browse())
-            owner = work.owner_id if work else next((c.owner_id for c in cs if c.owner_id and c.owner_id.active and companies.browse(company_id) in c.owner_id.company_ids), policy_map[company_id].owner_id if company_id in policy_map else self.env['res.users'])
-            if owner and (not owner.active or owner.share or company_id not in owner.company_ids.ids):
+            owner = work.owner_id if work else next((c.owner_id for c in cs if c.owner_id.id in eligible_owner_ids and companies.browse(company_id) in c.owner_id.company_ids), policy_map[company_id].owner_id if company_id in policy_map else self.env['res.users'])
+            if owner and (owner.id not in eligible_owner_ids or company_id not in owner.company_ids.ids):
                 owner = self.env['res.users']
             if f.get('owner_id') == 'unassigned' and owner or type(f.get('owner_id')) is int and f.get('owner_id') and owner.id != f['owner_id']:
                 continue
@@ -157,7 +160,7 @@ class Dashboard(models.AbstractModel):
         pending = versions.filtered(lambda c: c.state == 'pending' and c.evidence_id and key_for(c) in rows)
         activities = self.env['mail.activity'].search([('gt_renewal_id', 'in', [r['work'].id for r in rows.values() if r['work']]), ('active', '=', True)])
         overdue = activities.filtered(lambda a: a.date_deadline < days[a.gt_renewal_id.company_id.id])
-        return {'rows': rows, 'blocked': blocked, 'pending': pending, 'overdue': overdue, 'companies': companies, 'can_purchase': can_purchase, 'versions': versions, 'works': works, 'policies': policies}
+        return {'rows': rows, 'blocked': blocked, 'pending': pending, 'overdue': overdue, 'companies': companies, 'can_purchase': can_purchase, 'versions': versions, 'works': works, 'policies': policies, 'owners': eligible_owners}
 
     @api.model
     def get_data(self, filters=None):
@@ -170,7 +173,7 @@ class Dashboard(models.AbstractModel):
         blocked_preview = [{'id': i, 'name': v['order'].name, 'supplier': v['order'].partner_id.display_name, 'company': v['order'].company_id.name, 'details': v['order']._gt_format(v['result']), 'state': v['order'].state} for i, v in list(data['blocked'].items())[:8]]
         options_keys = set((c.company_id.id, c.supplier_id.id, c.type_id.id) for c in data['versions']) | set(rows)
         suppliers = scoped.env['res.partner'].browse(sorted({k[1] for k in options_keys}))
-        owners = scoped.env['res.users'].search([('share', '=', False), ('active', '=', True), ('company_ids', 'in', companies.ids)])
+        owners = data['owners']
         categories = scoped.env['gt.certificate.requirement'].search([('company_id', 'in', companies.ids), ('active', '=', True)]).category_id
         ancestor_ids = {int(x) for c in categories for x in c.parent_path.split('/') if x}
         categories = scoped.env['product.category'].search([('id', 'in', list(ancestor_ids | set(categories.ids)))])

@@ -28,7 +28,15 @@ class Purchase(models.Model):
 
     @api.model
     def _search_gt_dashboard_blocked(self, operator, value):
-        if operator not in ('in', 'not in') or not isinstance(value, (list, tuple)) or any(type(v) is not bool for v in value):
+        if operator in ('=', '!=') and type(value) is bool:
+            operator, value = ('in' if operator == '=' else 'not in'), [value]
+        if operator not in ('in', 'not in'):
+            return NotImplemented
+        try:
+            value = tuple(value)
+        except TypeError:
+            return NotImplemented
+        if any(type(v) is not bool for v in value):
             return NotImplemented
         service, companies, filters = self.env['gt.certificate.dashboard']._scope(self.env.context.get('gt_dashboard_filters', {}))
         data = service._build(companies, filters)

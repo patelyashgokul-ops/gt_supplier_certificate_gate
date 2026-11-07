@@ -247,3 +247,17 @@ class TestDashboard(TestPurchaseGate):
         self.assertFalse(self.action_records(action))
         certificate.with_user(self.reviewer).action_revoke('Issuer withdrew scope')
         self.assertEqual(self.action_records(action), po)
+
+    def test_owner_role_loss_is_unassigned_without_waiting_for_cron(self):
+        self.requirement()
+        owner = self.make_user('dashboard_owner_removed', 'group_user')
+        self.env['gt.certificate.policy'].create({'company_id': self.a.id, 'owner_id': owner.id})
+        self.order()
+        work = self.env['gt.certificate.renewal']._sync_key(self.a, self.vendor, self.kind)
+        self.assertEqual(self.dashboard({'owner_id': owner.id})['kpis']['missing'], 1)
+        owner.group_ids = [Command.set([self.env.ref('base.group_user').id])]
+        with self.assertRaises(AccessError):
+            self.dashboard({'owner_id': owner.id})
+        result = self.dashboard({'owner_id': 'unassigned'}, user=self.manager)
+        self.assertEqual(result['requirements'][0]['owner'], 'Unassigned')
+        self.assertNotIn(owner.id, [x['id'] for x in result['options']['owners']])
