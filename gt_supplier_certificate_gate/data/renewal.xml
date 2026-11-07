@@ -1,0 +1,4 @@
+<odoo noupdate="1">
+  <record id="activity_type_renewal" model="mail.activity.type"><field name="name">Supplier Certificate Renewal</field><field name="res_model">gt.certificate.renewal</field><field name="summary">Follow up supplier certificate renewal</field></record>
+  <record id="cron_certificate_renewals" model="ir.cron"><field name="name">Golok Technology: Certificate Renewal Check</field><field name="model_id" ref="model_gt_certificate_renewal"/><field name="state">code</field><field name="code">model._cron_renewals()</field><field name="user_id" ref="base.user_root"/><field name="interval_number">1</field><field name="interval_type">days</field><field name="active">True</field></record>
+</odoo>

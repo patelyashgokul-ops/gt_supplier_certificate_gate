@@ -12,3 +12,11 @@ evidence_company,Evidence company restriction,gt.certificate.evidence,,crud,"[('
 certificate_submitter,Certificate metadata submission,gt.supplier.certificate,group_user,cru,
 upload_user,Write only upload,gt.certificate.upload,group_user,cru,
 decision_reviewer,Review decision wizard,gt.certificate.decision,group_reviewer,cru,
+policy_user,Renewal policy read,gt.certificate.policy,group_user,r,
+policy_manager,Renewal policy maintain,gt.certificate.policy,group_manager,crud,
+policy_company,Renewal policy company restriction,gt.certificate.policy,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
+renewal_user,Renewal metadata read and followup,gt.certificate.renewal,group_user,ru,
+renewal_manager,Renewal management,gt.certificate.renewal,group_manager,cru,
+renewal_company,Renewal company restriction,gt.certificate.renewal,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
+renewal_activity_company,Renewal Activity parent restriction,mail.activity,,crud,"['|', ('gt_renewal_id', '=', False), ('gt_renewal_id', 'access', 'read')]"
+renewal_message_company,Renewal message parent restriction,mail.message,,r,"['|', ('model', '!=', 'gt.certificate.renewal'), ('res_access_read', '=', True)]"

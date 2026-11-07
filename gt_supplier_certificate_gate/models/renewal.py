@@ -52,14 +52,24 @@ class Renewal(models.Model):
     due_date = fields.Date(string='Follow-up Deadline', required=True, tracking=True)
     state = fields.Selection([('supplier', 'Awaiting Supplier'), ('review', 'Pending Review'), ('future', 'Approved for Future Validity'), ('covered', 'Currently Covered'), ('cancelled', 'No Longer Required')], default='supplier', required=True, readonly=True, tracking=True, index=True)
     activity_acknowledged = fields.Boolean(readonly=True, copy=False)
+    expiry_bucket = fields.Selection([('missing', 'No Effective Evidence'), ('expired', 'Expired'), ('7', 'Expiring within 7 Days'), ('30', 'Expiring within 30 Days'), ('later', 'Later')], compute='_compute_work_flags', search='_search_expiry_bucket')
     unassigned = fields.Boolean(compute='_compute_work_flags', search='_search_unassigned')
     overdue = fields.Boolean(compute='_compute_work_flags', search='_search_overdue')
     _open_unique = models.UniqueIndex("(company_id, supplier_id, type_id) WHERE state NOT IN ('covered', 'cancelled')", 'An open follow-up already exists for this supplier/company/type.')
 
     def _compute_work_flags(self):
         for record in self:
+            days = (record.expiry - record.company_id._gt_today()).days if record.expiry else None
+            record.expiry_bucket = 'missing' if days is None else 'expired' if days < 0 else '7' if days <= 7 else '30' if days <= 30 else 'later'
             record.unassigned = not record.owner_id or not record.owner_id.active
             record.overdue = record.state not in ('covered', 'cancelled') and record.due_date < record.company_id._gt_today()
+
+    @api.model
+    def _search_expiry_bucket(self, operator, value):
+        if operator not in ('in', 'not in'):
+            return NotImplemented
+        ids = self.search([]).filtered(lambda r: r.expiry_bucket in value).ids
+        return [('id', operator, ids)]
 
     @api.model
     def _search_unassigned(self, operator, value):

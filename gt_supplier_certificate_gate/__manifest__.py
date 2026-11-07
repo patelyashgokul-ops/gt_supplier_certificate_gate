@@ -5,9 +5,9 @@
     'license': 'OPL-1',
     'category': 'Supply Chain/Purchase',
     'sequence': 5,
-    'summary': 'Company-specific supplier certificate configuration and restricted metadata',
+    'summary': 'Reviewer-controlled certificates, purchase gates and renewal follow-up',
     'depends': ['purchase', 'mail'],
-    'data': ['security/groups.xml', 'security/ir.access.csv', 'views/certificates.xml', 'views/lifecycle.xml', 'views/purchase_gate.xml'],
+    'data': ['security/groups.xml', 'security/ir.access.csv', 'views/certificates.xml', 'views/lifecycle.xml', 'views/purchase_gate.xml', 'data/renewal.xml', 'views/renewal.xml'],
     'application': True,
     'installable': True,
 }
