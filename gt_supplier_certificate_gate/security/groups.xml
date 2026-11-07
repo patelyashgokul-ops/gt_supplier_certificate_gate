@@ -1,0 +1,7 @@
+<odoo>
+  <record id="privilege_certificate" model="res.groups.privilege"><field name="name">Supplier Certificates</field><field name="category_id" ref="base.module_category_supply_chain"/></record>
+  <record id="group_user" model="res.groups"><field name="name">Certificate User</field><field name="privilege_id" ref="privilege_certificate"/><field name="implied_ids" eval="[(4, ref('base.group_user'))]"/></record>
+  <record id="group_manager" model="res.groups"><field name="name">Certificate Manager</field><field name="privilege_id" ref="privilege_certificate"/><field name="implied_ids" eval="[(4, ref('group_user'))]"/></record>
+  <record id="privilege_review" model="res.groups.privilege"><field name="name">Confidential Certificate Review</field><field name="category_id" ref="base.module_category_supply_chain"/></record>
+  <record id="group_reviewer" model="res.groups"><field name="name">Certificate Reviewer</field><field name="privilege_id" ref="privilege_review"/><field name="implied_ids" eval="[(4, ref('group_user'))]"/></record>
+</odoo>
