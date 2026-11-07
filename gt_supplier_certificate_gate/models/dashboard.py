@@ -1,4 +1,4 @@
-﻿"""Authorized live dashboard projections. No evidence reads or elevated aggregation."""
+"""Authorized live dashboard projections. No evidence reads or elevated aggregation."""
 from datetime import timedelta
 from odoo import api, fields, models, Command
 from odoo.exceptions import AccessError, ValidationError, UserError
@@ -49,7 +49,7 @@ class Dashboard(models.AbstractModel):
         elif owner:
             user = scoped.env['res.users'].browse(owner)
             user.check_access('read')
-            if not user.exists() or not user.active or user.share or not user.company_ids.intersect(companies):
+            if not user.exists() or not user.active or user.share or not (user.company_ids & companies):
                 raise AccessError('Renewal owner is not authorized for the selected companies.')
         if f.get('window', 'all') not in ('all', '7', '30', '60', 'policy') or f.get('status', 'all') not in ('all', *(s for s, label in STATUS)):
             raise ValidationError('Unsupported reporting window or status.')
@@ -172,11 +172,11 @@ class Dashboard(models.AbstractModel):
         suppliers = scoped.env['res.partner'].browse(sorted({k[1] for k in options_keys}))
         owners = scoped.env['res.users'].search([('share', '=', False), ('active', '=', True), ('company_ids', 'in', companies.ids)])
         categories = scoped.env['product.category'].search([])
-        return {'kpis': kpis, 'chart': [{'key': key, 'label': label, 'count': sum(r['bucket'] == key for r in relevant)} for key, label in BUCKETS], 'blocked': blocked_preview, 'requirements': [serialize(r) for r in relevant[:8]], 'pending': [{'id': c.id, 'supplier': c.supplier_id.display_name, 'certificate': c.type_id.name, 'company': c.company_id.name, 'submitted_at': fields.Datetime.to_string(c.submitted_at)} for c in data['pending'][:8]], 'overdue': [{'id': a.gt_renewal_id.id, 'supplier': a.gt_renewal_id.supplier_id.display_name, 'certificate': a.gt_renewal_id.type_id.name, 'owner': a.user_id.name, 'due_date': str(a.date_deadline)} for a in data['overdue'][:8]], 'updated_at': fields.Datetime.to_string(fields.Datetime.now()), 'can_review': self.env.user.has_group('gt_supplier_certificate_gate.group_reviewer'), 'can_manage': self.env.user.has_group('gt_supplier_certificate_gate.group_manager'), 'can_purchase': data['can_purchase'], 'options': {'companies': [{'id': c.id, 'name': c.name} for c in self.env.user.company_ids], 'owners': [{'id': u.id, 'name': u.name} for u in owners], 'suppliers': [{'id': s.id, 'name': s.display_name} for s in suppliers], 'types': [{'id': t.id, 'name': t.name} for t in scoped.env['gt.certificate.type'].search([])], 'categories': [{'id': c.id, 'name': c.display_name} for c in categories]}, 'contract': 'Current authorized RFQs; distinct supplier/company/type coverage. No historical failed-attempt count. Approved contiguous renewals extend the coverage horizon.'}
+        return {'kpis': kpis, 'chart': [{'key': 'bucket_' + key, 'label': label, 'count': sum(r['bucket'] == key for r in relevant)} for key, label in BUCKETS], 'blocked': blocked_preview, 'requirements': [serialize(r) for r in relevant[:8]], 'pending': [{'id': c.id, 'supplier': c.supplier_id.display_name, 'certificate': c.type_id.name, 'company': c.company_id.name, 'submitted_at': fields.Datetime.to_string(c.submitted_at)} for c in data['pending'][:8]], 'overdue': [{'id': a.gt_renewal_id.id, 'supplier': a.gt_renewal_id.supplier_id.display_name, 'certificate': a.gt_renewal_id.type_id.name, 'owner': a.user_id.name, 'due_date': str(a.date_deadline)} for a in data['overdue'][:8]], 'updated_at': fields.Datetime.to_string(fields.Datetime.now()), 'can_review': self.env.user.has_group('gt_supplier_certificate_gate.group_reviewer'), 'can_manage': self.env.user.has_group('gt_supplier_certificate_gate.group_manager'), 'can_purchase': data['can_purchase'], 'options': {'companies': [{'id': c.id, 'name': c.name} for c in self.env.user.company_ids], 'owners': [{'id': u.id, 'name': u.name} for u in owners], 'suppliers': [{'id': s.id, 'name': s.display_name} for s in suppliers], 'types': [{'id': t.id, 'name': t.name} for t in scoped.env['gt.certificate.type'].search([])], 'categories': [{'id': c.id, 'name': c.display_name} for c in categories]}, 'contract': 'Current authorized RFQs; distinct supplier/company/type coverage. No historical failed-attempt count. Approved contiguous renewals extend the coverage horizon.'}
 
     @api.model
     def open_kpi(self, metric, filters=None):
-        if metric not in ('blocked', 'expiring', 'missing', 'pending', 'overdue', 'coverage', *(k for k, label in BUCKETS)):
+        if metric not in ('blocked', 'expiring', 'missing', 'pending', 'overdue', 'coverage', *('bucket_' + k for k, label in BUCKETS)):
             raise ValidationError('Unsupported dashboard action.')
         scoped, companies, f = self._scope(filters)
         data = scoped._build(companies, f)
@@ -188,7 +188,7 @@ class Dashboard(models.AbstractModel):
         if metric in ('pending', 'overdue'):
             records = data[metric]
             return {'type': 'ir.actions.act_window', 'name': 'Pending Verification' if metric == 'pending' else 'Overdue Follow-ups', 'res_model': records._name, 'views': [(False, 'list'), (False, 'form')], 'domain': [('id', 'in', records.ids)], 'context': context}
-        selected = [r for r in data['rows'].values() if r['relevant'] and (metric == 'coverage' or metric == 'expiring' and r['status'] == 'effective' and r['days'] <= 30 or metric == 'missing' and r['demand'] and r['status'] != 'effective' or metric == r['bucket'])]
+        selected = [r for r in data['rows'].values() if r['relevant'] and (metric == 'coverage' or metric == 'expiring' and r['status'] == 'effective' and r['days'] <= 30 or metric == 'missing' and r['demand'] and r['status'] != 'effective' or metric == 'bucket_' + r['bucket'])]
         stamp = fields.Datetime.now()
         vals = []
         for r in selected:
