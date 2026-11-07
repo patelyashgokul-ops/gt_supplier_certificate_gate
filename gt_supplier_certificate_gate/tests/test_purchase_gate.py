@@ -211,3 +211,60 @@ class TestPurchaseRPC(TestDownloads):
             self.assertNotIn('%PDF-', response.text)
         po.invalidate_recordset()
         self.assertEqual(po.state, 'draft')
+
+@tagged('post_install', '-at_install', 'gt_phase3')
+class TestPurchaseMutationRegression(TestPurchaseGate):
+    def test_current_supplier_product_hierarchy_and_rules(self):
+        po = self.order()
+        self.assertEqual(po._gt_evaluate()['status'], 'not_required')
+        self.verified()
+        direct = self.requirement()
+        self.assertEqual(po._gt_evaluate()['status'], 'ready')
+        parent = self.env['product.category'].create({'name': 'New parent after earlier pass'})
+        self.requirement(kind=self.other, category=parent)
+        self.category.parent_id = parent
+        self.assertEqual(po._gt_evaluate()['status'], 'blocked')
+        self.category.parent_id = False
+        self.assertEqual(po._gt_evaluate()['status'], 'ready')
+        new_vendor = self.env['res.partner'].create({'name': 'Changed PO supplier'})
+        po.partner_id = new_vendor
+        self.assertEqual(po._gt_evaluate()['status'], 'blocked')
+        po.partner_id = self.vendor
+        new_product = self.env['product.product'].create({'name': 'Changed required product', 'categ_id': parent.id})
+        po.order_line.product_id = new_product
+        self.assertEqual(po._gt_evaluate()['status'], 'blocked')
+        po.order_line.product_id = self.product
+        self.assertEqual(po._gt_evaluate()['status'], 'ready')
+        direct.unlink()
+        self.assertEqual(po._gt_evaluate()['status'], 'not_required')
+        self.requirement()
+        po.button_confirm()
+        self.assertEqual(po.state, 'purchase')
+        with self.assertRaises(UserError), self.cr.savepoint():
+            po.order_line.write({'product_id': new_product.id})
+        self.assertEqual(po.order_line.product_id, self.product)
+
+    def test_native_approval_and_mixed_bulk_are_not_bypassed(self):
+        self.a.po_double_validation = 'two_step'
+        self.a.po_double_validation_amount = 1
+        self.requirement()
+        self.verified(valid_until='2026-11-04')
+        po = self.order()
+        po.button_confirm()
+        self.assertEqual(po.state, 'to approve')
+        with self.assertRaises(AccessError):
+            po.write({'state': 'purchase'})
+        po.button_approve(force=True)
+        self.assertEqual(po.state, 'to approve')
+        with patch.object(type(self.a), '_gt_today', lambda company: date(2026, 11, 5)):
+            with self.assertRaises(UserError):
+                po.with_user(self.manager).button_approve(force=True)
+            office_cat = self.env['product.category'].create({'name': 'Unrestricted bulk'})
+            office = self.env['product.product'].create({'name': 'Unrestricted product', 'categ_id': office_cat.id})
+            good, bad = self.order([(office, 1)]), self.order()
+            with self.assertRaises(UserError):
+                (good | bad).button_confirm()
+            self.assertEqual(good.state, 'draft')
+            self.assertEqual(bad.state, 'draft')
+        with self.assertRaises(UserError):
+            self.env['purchase.order'].with_user(self.buyer).with_context(default_state='purchase').create({'partner_id': self.vendor.id})
