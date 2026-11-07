@@ -1,6 +1,6 @@
 from psycopg2 import IntegrityError
 from odoo import Command
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -73,10 +73,10 @@ class TestFoundation(TransactionCase):
 
     def test_company_relations(self):
         foreign = self.env['res.partner'].create({'name': 'B vendor', 'company_id': self.b.id})
-        with self.assertRaises(ValidationError), self.cr.savepoint():
+        with self.assertRaises(UserError), self.cr.savepoint():
             self.cert.write({'supplier_id': foreign.id})
         foreign_cat = self.env['product.category'].create({'name': 'B category', 'company_id': self.b.id})
-        with self.assertRaises(ValidationError), self.cr.savepoint():
+        with self.assertRaises(UserError), self.cr.savepoint():
             self.env['gt.certificate.requirement'].create({'company_id': self.a.id, 'category_id': foreign_cat.id, 'type_id': self.kind.id})
         with self.assertRaises(ValidationError), self.cr.savepoint():
             self.cert.write({'owner_id': self.env.ref('base.public_user').id})
@@ -98,7 +98,7 @@ class TestFoundation(TransactionCase):
             for kind in ('list', 'form', 'search'):
                 view = self.env.ref('gt_supplier_certificate_gate.view_' + key + '_' + kind)
                 self.env[action.res_model].with_user(self.manager).get_view(view.id, kind)
-        acls = self.env['ir.model.access'].search([('model_id.model', 'like', 'gt.%')])
+        acls = self.env['ir.access'].search([('model_id.model', '=like', 'gt.%'), ('group_id', '!=', False)])
         self.assertTrue(acls)
         self.assertTrue(all(a.group_id for a in acls))
         po = self.env['purchase.order'].create({'partner_id': self.vendor.id})

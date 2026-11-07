@@ -1,0 +1,11 @@
+id,name,model_id,group_id/id,operation,domain
+type_user,Classification read,gt.certificate.type,group_user,r,
+type_manager,Classification manage,gt.certificate.type,group_manager,crud,
+requirement_user,Requirements read,gt.certificate.requirement,group_user,r,
+requirement_manager,Requirements manage,gt.certificate.requirement,group_manager,crud,
+certificate_user,Certificate metadata read,gt.supplier.certificate,group_user,r,
+certificate_manager,Certificate metadata manage,gt.supplier.certificate,group_manager,crud,
+evidence_reviewer,Restricted evidence read,gt.certificate.evidence,group_reviewer,r,
+requirement_company,Requirement company restriction,gt.certificate.requirement,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
+certificate_company,Certificate company restriction,gt.supplier.certificate,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
+evidence_company,Evidence company restriction,gt.certificate.evidence,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"

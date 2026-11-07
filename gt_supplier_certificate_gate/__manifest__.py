@@ -7,7 +7,7 @@
     'sequence': 5,
     'summary': 'Company-specific supplier certificate configuration and restricted metadata',
     'depends': ['purchase', 'mail'],
-    'data': ['security/groups.xml', 'security/ir.model.access.csv', 'security/rules.xml', 'views/certificates.xml'],
+    'data': ['security/groups.xml', 'security/ir.access.csv', 'views/certificates.xml'],
     'application': True,
     'installable': True,
 }

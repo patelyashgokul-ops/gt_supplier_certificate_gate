@@ -1,8 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-type_user,Classification read,model_gt_certificate_type,group_user,1,0,0,0
-type_manager,Classification manage,model_gt_certificate_type,group_manager,1,1,1,1
-requirement_user,Requirements read,model_gt_certificate_requirement,group_user,1,0,0,0
-requirement_manager,Requirements manage,model_gt_certificate_requirement,group_manager,1,1,1,1
-certificate_user,Certificate metadata read,model_gt_supplier_certificate,group_user,1,0,0,0
-certificate_manager,Certificate metadata manage,model_gt_supplier_certificate,group_manager,1,1,1,1
-evidence_reviewer,Restricted evidence read,model_gt_certificate_evidence,group_reviewer,1,0,0,0
