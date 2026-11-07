@@ -1,0 +1,22 @@
+<odoo>
+  <record id="view_certificate_lifecycle" model="ir.ui.view">
+    <field name="name">gt.supplier.certificate.lifecycle</field><field name="model">gt.supplier.certificate</field><field name="inherit_id" ref="view_certificate_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//sheet" position="before"><header>
+        <button name="action_upload" string="Submit Restricted PDF" type="object" class="btn-primary" invisible="state != 'draft'"/>
+        <button name="action_approve" string="Approve" type="object" groups="group_reviewer" invisible="state != 'pending'" class="btn-primary"/>
+        <button name="action_decision" string="Reject" type="object" groups="group_reviewer" invisible="state != 'pending'"/>
+        <button name="action_decision" string="Revoke" type="object" groups="group_reviewer" invisible="state != 'verified'"/>
+        <button name="action_evidence" string="Download Restricted PDF" type="object" groups="group_reviewer" invisible="state == 'draft'"/>
+        <button name="action_history" string="Version History" type="object"/>
+        <field name="state" widget="statusbar" statusbar_visible="draft,pending,verified"/>
+      </header></xpath>
+      <xpath expr="//sheet/group" position="after"><group string="Submission and Decision"><field name="validity"/><field name="submitter_id"/><field name="submitted_at"/><field name="rejection_reason" invisible="state != 'rejected'"/><field name="revoked_by_id" invisible="state != 'revoked'"/><field name="revoked_at" invisible="state != 'revoked'"/><field name="revocation_reason" invisible="state != 'revoked'"/></group><p>Evidence is restricted to certificate reviewers. Submit a new version to correct or renew a submitted certificate.</p></xpath>
+    </field>
+  </record>
+  <record id="view_certificate_review_search" model="ir.ui.view"><field name="name">gt.supplier.certificate.review.search</field><field name="model">gt.supplier.certificate</field><field name="inherit_id" ref="view_certificate_search"/><field name="arch" type="xml"><xpath expr="//search" position="inside"><filter name="pending" string="Pending Review" domain="[('state','=','pending')]"/><filter name="verified" string="Verified" domain="[('state','=','verified')]"/></xpath></field></record>
+  <record id="action_review" model="ir.actions.act_window"><field name="name">Awaiting Review</field><field name="res_model">gt.supplier.certificate</field><field name="view_mode">list,form</field><field name="context">{'search_default_pending': 1}</field></record>
+  <menuitem id="menu_review" name="Awaiting Review" parent="menu_root" action="action_review" groups="group_reviewer" sequence="15"/>
+  <record id="view_upload_form" model="ir.ui.view"><field name="name">gt.certificate.upload.form</field><field name="model">gt.certificate.upload</field><field name="arch" type="xml"><form string="Submit Restricted PDF"><group><field name="certificate_id" readonly="1"/><field name="data" required="1"/></group><p>PDF only, up to 10 MiB. Encrypted PDFs, active content and embedded files are rejected. Submission freezes this version and sends it for independent review. Submitters cannot download the stored file without reviewer permission.</p><footer><button name="action_close" string="Submit for Review" type="object" class="btn-primary"/><button string="Cancel" special="cancel"/></footer></form></field></record>
+  <record id="view_decision_form" model="ir.ui.view"><field name="name">gt.certificate.decision.form</field><field name="model">gt.certificate.decision</field><field name="arch" type="xml"><form><group><field name="certificate_id" readonly="1"/><field name="operation" readonly="1"/><field name="reason"/></group><footer><button name="action_apply" string="Record Decision" type="object" class="btn-primary"/><button string="Cancel" special="cancel"/></footer></form></field></record>
+</odoo>
