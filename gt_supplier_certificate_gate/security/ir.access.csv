@@ -9,3 +9,6 @@ evidence_reviewer,Restricted evidence read,gt.certificate.evidence,group_reviewe
 requirement_company,Requirement company restriction,gt.certificate.requirement,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
 certificate_company,Certificate company restriction,gt.supplier.certificate,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
 evidence_company,Evidence company restriction,gt.certificate.evidence,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
+certificate_submitter,Certificate metadata submission,gt.supplier.certificate,group_user,cru,
+upload_user,Write only upload,gt.certificate.upload,group_user,cru,
+decision_reviewer,Review decision wizard,gt.certificate.decision,group_reviewer,cru,
