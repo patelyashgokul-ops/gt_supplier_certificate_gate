@@ -1,6 +1,9 @@
 /** @odoo-module **/
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { animationFrame, contains, mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { contains, mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { animationFrame } from "@odoo/hoot-mock";
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
+defineMailModels();
 import { CertificateDashboard } from "@gt_supplier_certificate_gate/dashboard/dashboard";
 
 function payload(overrides = {}) {
@@ -55,7 +58,7 @@ test("empty and permission-limited populations remain explicit", async () => {
     expect(".gt-kpi:first-child strong").toHaveText("Unavailable");
     expect(".gt-kpi:first-child").toHaveProperty("disabled", true);
     expect(".gt-chart .gt-empty").toHaveText("No coverage risks in these buckets for the selected filters.");
-    expect(".gt-bar-fill").toHaveAttribute("style", "width:0%");
+    expect(".gt-bar-fill").toHaveAttribute("style", "width: 0%;");
 });
 
 test("loading clears previous totals and server failure offers retry without traceback", async () => {
