@@ -33,6 +33,14 @@ class Purchase(models.Model):
             self.invalidate_recordset()
             self.order_line.invalidate_recordset()
 
+    def _gt_touch_for_line_change(self):
+        # Version the parent before changing children. A concurrent confirmation
+        # using an older repeatable-read snapshot must retry, including when a
+        # zero-priced new line would leave native monetary totals unchanged.
+        self._gt_lock()
+        super(Purchase, self).write({'write_date': fields.Datetime.now()})
+        self.flush_recordset(['write_date'])
+
     def _gt_evaluate(self, lock=False):
         self.ensure_one()
         self.check_access('read')
@@ -138,12 +146,17 @@ class PurchaseLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        order_ids = {v.get('order_id') or self.env.context.get('default_order_id') for v in vals_list}
+        self.env['purchase.order'].browse([i for i in order_ids if i])._gt_touch_for_line_change()
         lines = super().create(vals_list)
         lines.order_id.filtered(lambda o: o.state == 'purchase')._gt_assert()
         return lines
 
     def write(self, vals):
         orders = self.order_id
+        if {'product_id', 'product_qty', 'order_id', 'display_type', 'is_downpayment'} & vals.keys():
+            targets = orders | self.env['purchase.order'].browse(vals.get('order_id', []))
+            targets._gt_touch_for_line_change()
         result = super().write(vals)
         if {'product_id', 'product_qty', 'order_id', 'display_type', 'is_downpayment'} & vals.keys():
             (orders | self.order_id).filtered(lambda o: o.state == 'purchase')._gt_assert()
