@@ -226,3 +226,14 @@ class TestDashboard(TestPurchaseGate):
         with patch('odoo.addons.gt_supplier_certificate_gate.models.dashboard.LIMIT', 1):
             with self.assertRaises(UserError):
                 self.dashboard()
+
+    def test_accounting_viewer_keeps_native_purchase_metadata_access(self):
+        po = self.order()
+        viewer = self.make_user('dashboard_account_readonly', 'group_user')
+        viewer.group_ids = [Command.set([self.env.ref('account.group_account_readonly').id])]
+        self.assertEqual(po.with_user(viewer).read(['name'])[0]['name'], po.name)
+        view = self.env.ref('purchase.purchase_order_form')
+        arch = self.env['purchase.order'].with_user(viewer).get_view(view.id, 'form')['arch']
+        self.assertNotIn('name="gt_current_details"', arch)
+        with self.assertRaises(AccessError):
+            self.dashboard(user=viewer)

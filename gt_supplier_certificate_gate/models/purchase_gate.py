@@ -19,8 +19,8 @@ class Requirement(models.Model):
 
 class Purchase(models.Model):
     _inherit = 'purchase.order'
-    gt_current_status = fields.Selection([('blocked', 'Blocked'), ('ready', 'Ready for Retry'), ('not_required', 'No Requirement')], compute='_compute_gt_current', string='Current Certificate Gate')
-    gt_current_details = fields.Text(compute='_compute_gt_current', string='Current Blocking Details')
+    gt_current_status = fields.Selection([('blocked', 'Blocked'), ('ready', 'Ready for Retry'), ('not_required', 'No Requirement')], compute='_compute_gt_current', string='Current Certificate Gate', groups='gt_supplier_certificate_gate.group_user')
+    gt_current_details = fields.Text(compute='_compute_gt_current', string='Current Blocking Details', groups='gt_supplier_certificate_gate.group_user')
 
     def _compute_gt_current(self):
         results = self._gt_evaluations()

@@ -1,5 +1,5 @@
-﻿.gt-dashboard {
-    --gt-ink: var(--body-color, #182b49); --gt-surface: var(--o-view-background-color, #fff);
+.gt-dashboard {
+    --gt-ink: var(--body-color, var(--bs-body-color, #182b49)); --gt-surface: var(--o-view-background-color, var(--bs-body-bg, #fff));
     color: var(--gt-ink); background: var(--o-webclient-background-color, #f3f6fa);
     padding: clamp(18px, 2.5vw, 36px); overflow: auto; height: 100%;
     .gt-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:26px; }
