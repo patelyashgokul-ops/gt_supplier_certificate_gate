@@ -1,4 +1,4 @@
-﻿import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, proxy } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -8,7 +8,7 @@ export class CertificateDashboard extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.state = useState({ loading: true, error: false, data: null, filters: { company_id: 0, owner_id: 0, supplier_id: 0, type_id: 0, category_id: 0, window: "all", status: "all" } });
+        this.state = proxy({ loading: true, error: false, data: null, filters: { company_id: 0, owner_id: 0, supplier_id: 0, type_id: 0, category_id: 0, window: "all", status: "all" } });
         this.request = 0;
         onWillStart(() => this.load());
     }
@@ -41,7 +41,7 @@ export class CertificateDashboard extends Component {
         const name = event.target.name;
         const value = event.target.value;
         this.state.filters[name] = ["window", "status"].includes(name) || value === "unassigned" ? value : Number(value);
-        if (name === "company_id") this.state.filters.owner_id = 0;
+        if (name === "company_id") Object.assign(this.state.filters, { owner_id: 0, supplier_id: 0, category_id: 0 });
         return this.load();
     }
     clearFilters() {

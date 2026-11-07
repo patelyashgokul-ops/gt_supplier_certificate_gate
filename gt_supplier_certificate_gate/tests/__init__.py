@@ -3,3 +3,4 @@ from . import test_lifecycle
 from . import test_purchase_gate
 from . import test_renewal
 from . import test_dashboard
+from . import test_dashboard_frontend
