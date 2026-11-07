@@ -170,6 +170,12 @@ class TestPurchaseGate(LifecycleFixtures, TestFoundation):
         bpo.company_id = self.b
         self.assert_blocked(bpo, 'Missing')
 
+    def test_downpayment_flag_cannot_hide_product(self):
+        self.requirement()
+        po = self.order()
+        po.order_line.is_downpayment = True
+        self.assert_blocked(po)
+
     def test_manual_check_is_non_authoritative(self):
         self.requirement()
         po = self.order()
@@ -185,3 +191,23 @@ class TestPurchaseGate(LifecycleFixtures, TestFoundation):
         self.env['gt.supplier.certificate'].search([('state', '=', 'verified')]).with_user(self.reviewer).action_revoke('Incorrect issuer scope')
         self.assert_blocked(po, 'revoked')
         self.assertNotIn('%PDF-', po.gt_check_summary)
+
+
+from .test_lifecycle import TestDownloads
+
+
+@tagged('post_install', '-at_install', 'gt_phase3')
+class TestPurchaseRPC(TestDownloads):
+    def test_rpc_actions_cannot_bypass(self):
+        self.buyer.group_ids = [Command.link(self.env.ref('purchase.group_purchase_user').id)]
+        category = self.env['product.category'].create({'name': 'RPC required'})
+        product = self.env['product.product'].create({'name': 'RPC product', 'categ_id': category.id})
+        self.env['gt.certificate.requirement'].create({'company_id': self.a.id, 'category_id': category.id, 'type_id': self.kind.id})
+        po = self.env['purchase.order'].create({'partner_id': self.vendor.id, 'order_line': [Command.create({'product_id': product.id, 'name': 'RPC product', 'product_qty': 1})]})
+        self.authenticate(self.buyer.login, 'gt-test-password')
+        for method, args in [('button_confirm', [po.ids]), ('button_approve', [po.ids]), ('write', [po.ids, {'state': 'purchase'}])]:
+            response = self.url_open('/web/dataset/call_kw', json={'jsonrpc': '2.0', 'id': 1, 'method': 'call', 'params': {'model': 'purchase.order', 'method': method, 'args': args, 'kwargs': {'context': {'skip_certificate_check': True}}}})
+            self.assertIn('error', response.json())
+            self.assertNotIn('%PDF-', response.text)
+        po.invalidate_recordset()
+        self.assertEqual(po.state, 'draft')

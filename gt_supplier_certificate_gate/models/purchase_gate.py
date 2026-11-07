@@ -40,7 +40,7 @@ class Purchase(models.Model):
             raise AccessError('Purchasing company is not authorized.')
         if lock:
             self._gt_lock()
-        lines = self.order_line.filtered(lambda l: not l.display_type and not l.is_downpayment and l.product_id and l.product_qty > 0)
+        lines = self.order_line.filtered(lambda l: not l.display_type and l.product_id and l.product_qty > 0)
         requirements = self.env['gt.certificate.requirement']._for_categories(lines.product_id.categ_id, self.company_id)
         type_ids = set().union(*(set(t.ids) for t in requirements.values())) if requirements else set()
         candidates = self.env['gt.supplier.certificate'].search([('company_id', '=', self.company_id.id), ('supplier_id', '=', self.partner_id.id), ('type_id', 'in', list(type_ids))])
