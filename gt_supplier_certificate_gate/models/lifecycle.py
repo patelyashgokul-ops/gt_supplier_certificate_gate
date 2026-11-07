@@ -46,7 +46,9 @@ class Certificate(models.Model):
         for vals in vals_list:
             if PROTECTED & vals.keys():
                 raise AccessError('Workflow fields are set only by controlled actions.')
-        return super().create(vals_list)
+        # Context defaults are untrusted RPC input too.
+        clean = {k: v for k, v in self.env.context.items() if k not in {'default_' + f for f in PROTECTED}}
+        return super(Certificate, self.with_context(clean)).create(vals_list)
 
     def _lock(self):
         self.check_access('write')
@@ -95,8 +97,26 @@ class Certificate(models.Model):
             raise ValidationError('Submit a non-empty PDF up to 10 MiB.')
         try:
             pdf = PdfReader(io.BytesIO(raw), strict=True)
-            if pdf.is_encrypted or not len(pdf.pages):
+            if pdf.is_encrypted or not 0 < len(pdf.pages) <= 500:
                 raise ValueError('encrypted or empty')
+            # Inspect parsed names too: PDF name escapes must not hide actions.
+            seen, todo = set(), [pdf.trailer]
+            forbidden = {'/JavaScript', '/JS', '/Launch', '/EmbeddedFiles', '/EmbeddedFile', '/RichMedia', '/OpenAction', '/AA', '/A', '/XFA'}
+            while todo:
+                node = todo.pop()
+                if hasattr(node, 'get_object'):
+                    node = node.get_object()
+                if id(node) in seen:
+                    continue
+                seen.add(id(node))
+                if len(seen) > 20000:
+                    raise ValueError('PDF object limit')
+                if isinstance(node, dict):
+                    if forbidden.intersection(map(str, node.keys())) or str(node.get('/S', '')) in forbidden:
+                        raise ValueError('active content')
+                    todo.extend(node.values())
+                elif isinstance(node, (list, tuple)):
+                    todo.extend(node)
             # Reject active content; PDF authenticity is a human review responsibility.
             if any(marker in raw for marker in (b'/JavaScript', b'/JS', b'/Launch', b'/EmbeddedFile', b'/RichMedia', b'/OpenAction', b'/AA')):
                 raise ValueError('active content')
@@ -122,6 +142,7 @@ class Certificate(models.Model):
     def action_approve(self):
         self._review_check('pending')
         self._validate_metadata()
+        self._check_company()
         self._decision_write({'state': 'verified', 'reviewer_id': self.env.uid, 'reviewed_at': fields.Datetime.now()})
         return True
 
@@ -161,7 +182,7 @@ class Certificate(models.Model):
         self.ensure_one()
         self.check_access('read')
         day = fields.Date.to_date(evaluation_date)
-        return bool(self.company_id.id == company_id and self.supplier_id.id == supplier_id and self.type_id.id == type_id and self.state == 'verified' and self.evidence_id and self.valid_from <= day <= self.valid_until)
+        return bool(self.company_id.id == company_id and self.supplier_id.id == supplier_id and self.type_id.id == type_id and (not self.supplier_id.company_id or self.supplier_id.company_id == self.company_id) and self.state == 'verified' and self.evidence_id and self.valid_from <= day <= self.valid_until)
 
 
 class Evidence(models.Model):

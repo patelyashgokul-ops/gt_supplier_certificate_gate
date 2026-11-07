@@ -19,7 +19,7 @@ def pdf_content():
 class LifecycleFixtures:
     def submit(self, certificate=None, user=None):
         c = certificate or self.cert
-        wizard = self.env['gt.certificate.upload'].with_user(user or self.manager).create({'certificate_id': c.id, 'data': pdf_content()})
+        wizard = self.env['gt.certificate.upload'].with_user(user or self.manager).with_context(allowed_company_ids=c.company_id.ids).create({'certificate_id': c.id, 'data': pdf_content()})
         self.assertFalse(wizard.data)
         return c
 
@@ -33,6 +33,16 @@ class LifecycleFixtures:
 @tagged('post_install', '-at_install', 'gt_phase2')
 class TestLifecycle(LifecycleFixtures, TestFoundation):
     # Inherited foundation assertions are deliberately retained as regressions.
+    def test_context_forgery_and_copy(self):
+        c = self.env['gt.supplier.certificate'].with_user(self.manager).with_context(default_state='verified', default_reviewer_id=self.manager.id, default_evidence_id=123).create(self.values())
+        self.assertEqual(c.state, 'draft')
+        self.assertFalse(c.reviewer_id)
+        self.assertFalse(c.evidence_id)
+        c = self.verified()
+        copied = c.copy()
+        self.assertEqual(copied.state, 'draft')
+        self.assertFalse(copied.evidence_id)
+
     def test_submission_validation(self):
         self.assertEqual(self.cert.state, 'draft')
         with self.assertRaises(UserError):
@@ -106,7 +116,7 @@ class TestLifecycle(LifecycleFixtures, TestFoundation):
 
     def test_binary_isolation_and_company(self):
         c = self.verified()
-        foreign = self.verified(company_id=self.b.id) if False else self.cert_b
+        foreign = self.cert_b
         self.manager.company_ids = [Command.set((self.a | self.b).ids)]
         self.submit(foreign, self.manager.with_context(allowed_company_ids=[self.b.id]))
         evidence = c.evidence_id
@@ -157,10 +167,9 @@ class TestDownloads(LifecycleFixtures, HttpCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.content.startswith(b'%PDF-'))
         self.assertIn('attachment', response.headers.get('Content-Disposition', ''))
-        self.cert._decision_write({'company_id': self.b.id})
-        # Simulate a foreign-company vault row only in test setup, never via RPC.
-        self.env.cr.execute('UPDATE gt_certificate_evidence SET company_id=%s WHERE id=%s', [self.b.id, evidence.id])
-        self.env.invalidate_all()
-        response = self.url_open(urls[0])
+        self.manager.company_ids = [Command.set((self.a | self.b).ids)]
+        foreign = self.env['gt.supplier.certificate'].create({'company_id': self.b.id, 'supplier_id': self.vendor.id, 'type_id': self.kind.id, 'reference': 'FOREIGN', 'valid_from': '2026-01-01', 'valid_until': '2027-01-01'})
+        self.submit(foreign)
+        response = self.url_open('/web/content/gt.certificate.evidence/%s/data?download=true' % foreign.evidence_id.id)
         self.assertIn(response.status_code, (403, 404))
         self.assertNotIn(b'%PDF-', response.content)
