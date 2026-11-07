@@ -19,6 +19,15 @@ class Requirement(models.Model):
 
 class Purchase(models.Model):
     _inherit = 'purchase.order'
+    gt_current_status = fields.Selection([('blocked', 'Blocked'), ('ready', 'Ready for Retry'), ('not_required', 'No Requirement')], compute='_compute_gt_current', string='Current Certificate Gate')
+    gt_current_details = fields.Text(compute='_compute_gt_current', string='Current Blocking Details')
+
+    def _compute_gt_current(self):
+        results = self._gt_evaluations()
+        for order in self:
+            order.gt_current_status = results[order.id]['status']
+            order.gt_current_details = order._gt_format(results[order.id])
+
     gt_checked_at = fields.Datetime(string='Last Certificate Check', readonly=True, copy=False)
     gt_check_result = fields.Selection([('blocked', 'Blocked'), ('ready', 'Ready for Retry'), ('not_required', 'No Requirement')], string='Last Check Result', readonly=True, copy=False)
     gt_check_summary = fields.Text(string='Last Check Details', readonly=True, copy=False)
@@ -41,7 +50,21 @@ class Purchase(models.Model):
         super(Purchase, self).write({'write_date': fields.Datetime.now()})
         self.flush_recordset(['write_date'])
 
-    def _gt_evaluate(self, lock=False):
+    def _gt_evaluations(self):
+        """Request-local batch preparation; enforcement still locks and reads fresh."""
+        self.check_access('read')
+        prepared = {}
+        for company, orders in self.grouped('company_id').items():
+            categories = orders.order_line.product_id.categ_id
+            requirements = self.env['gt.certificate.requirement']._for_categories(categories, company)
+            type_ids = {i for types in requirements.values() for i in types.ids}
+            versions = self.env['gt.supplier.certificate'].search([('company_id', '=', company.id), ('supplier_id', 'in', orders.partner_id.ids), ('type_id', 'in', list(type_ids))])
+            by_supplier = versions.grouped('supplier_id')
+            for order in orders:
+                prepared[order.id] = order._gt_evaluate(_prepared=(requirements, by_supplier.get(order.partner_id, versions.browse())))
+        return prepared
+
+    def _gt_evaluate(self, lock=False, _prepared=None):
         self.ensure_one()
         self.check_access('read')
         if not self.env.su and self.company_id not in self.env.user.company_ids:
@@ -49,9 +72,12 @@ class Purchase(models.Model):
         if lock:
             self._gt_lock()
         lines = self.order_line.filtered(lambda l: not l.display_type and l.product_id and l.product_qty > 0)
-        requirements = self.env['gt.certificate.requirement']._for_categories(lines.product_id.categ_id, self.company_id)
-        type_ids = set().union(*(set(t.ids) for t in requirements.values())) if requirements else set()
-        candidates = self.env['gt.supplier.certificate'].search([('company_id', '=', self.company_id.id), ('supplier_id', '=', self.partner_id.id), ('type_id', 'in', list(type_ids))])
+        if _prepared is not None and not lock:
+            requirements, candidates = _prepared
+        else:
+            requirements = self.env['gt.certificate.requirement']._for_categories(lines.product_id.categ_id, self.company_id)
+            type_ids = set().union(*(set(t.ids) for t in requirements.values())) if requirements else set()
+            candidates = self.env['gt.supplier.certificate'].search([('company_id', '=', self.company_id.id), ('supplier_id', '=', self.partner_id.id), ('type_id', 'in', list(type_ids))])
         if lock and candidates:
             # Serialize certificate revocation with confirmation; no PDF reads.
             candidates.flush_recordset()

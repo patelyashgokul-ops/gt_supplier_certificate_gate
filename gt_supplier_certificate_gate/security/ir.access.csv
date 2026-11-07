@@ -20,3 +20,5 @@ renewal_manager,Renewal management,gt.certificate.renewal,group_manager,cru,
 renewal_company,Renewal company restriction,gt.certificate.renewal,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids)]"
 renewal_activity_company,Renewal Activity parent restriction,mail.activity,,crud,"['|', ('gt_renewal_id', '=', False), ('gt_renewal_id', 'access', 'read')]"
 renewal_message_company,Renewal message parent restriction,mail.message,,r,"['|', ('model', '!=', 'gt.certificate.renewal'), ('res_access_read', '=', True)]"
+coverage_user,Own authorized coverage reports,gt.certificate.coverage.report,group_user,crud,
+coverage_scope,Coverage report company and user restriction,gt.certificate.coverage.report,,crud,"[('company_id', 'in', company_ids), ('company_id', 'in', user.company_ids.ids), ('create_uid', '=', user.id)]"
