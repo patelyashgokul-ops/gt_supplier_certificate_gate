@@ -1,9 +1,9 @@
-﻿import json
+import json
 from datetime import date
 from unittest.mock import patch
 from psycopg2 import IntegrityError
 from odoo import Command
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 from .test_purchase_gate import TestPurchaseGate
 
@@ -32,7 +32,7 @@ class TestDashboard(TestPurchaseGate):
         two = self.order()
         data = self.dashboard()
         self.assertEqual(data['kpis'], {'blocked': 2, 'expiring': 0, 'missing': 2, 'pending': 0, 'overdue': 0})
-        self.assertEqual(set(self.action_records(self.drill('blocked')).ids), (one | two).ids and set((one | two).ids))
+        self.assertEqual(set(self.action_records(self.drill('blocked')).ids), set((one | two).ids))
         self.assertEqual(len(self.action_records(self.drill('missing'))), 2)
         self.assertEqual(len(data['blocked']), 2)
         self.verified()
@@ -141,6 +141,8 @@ class TestDashboard(TestPurchaseGate):
         for index in range(3):
             self.env['purchase.order'].with_company(self.b).create({'company_id': self.b.id, 'partner_id': self.vendor.id, 'order_line': [Command.create({'name': 'B product', 'product_id': self.product.id, 'product_qty': 1})]})
         self.assertEqual(self.dashboard()['kpis']['blocked'], 2)
+        hostile = self.env['gt.certificate.dashboard'].with_user(self.buyer).with_context(allowed_company_ids=self.b.ids, default_state='verified', skip_certificate_check=True).get_data()
+        self.assertEqual(hostile['kpis']['blocked'], 2)
         with self.assertRaises(AccessError):
             self.dashboard({'company_id': self.b.id})
         b_owner = self.env['res.users'].create({'name': 'B private owner', 'login': 'gt_private_b', 'company_id': self.b.id, 'company_ids': [Command.set(self.b.ids)], 'group_ids': [Command.set([self.env.ref('gt_supplier_certificate_gate.group_user').id])]})
@@ -214,3 +216,13 @@ class TestDashboard(TestPurchaseGate):
             self.assertEqual(po.gt_check_result, 'ready')
             self.assertEqual(po.gt_current_status, 'blocked')
         self.assertEqual(self.dashboard({'status': 'effective'})['kpis']['blocked'], 0)
+
+    def test_bounded_scope_reports_error_and_max_date_coverage(self):
+        self.requirement()
+        self.verified(valid_until='9999-12-31')
+        self.order()
+        self.assertEqual(self.dashboard()['kpis']['blocked'], 0)
+        self.env['gt.supplier.certificate'].create(self.values())
+        with patch('odoo.addons.gt_supplier_certificate_gate.models.dashboard.LIMIT', 1):
+            with self.assertRaises(UserError):
+                self.dashboard()

@@ -6,3 +6,4 @@ from . import test_dashboard
 from . import test_dashboard_frontend
 from . import test_dashboard_browser
 from . import test_dashboard_performance
+from . import test_stock_compatibility
