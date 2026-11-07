@@ -1,4 +1,7 @@
 from datetime import timedelta
+import logging
+
+_logger = logging.getLogger(__name__)
 from psycopg2 import IntegrityError
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -12,6 +15,9 @@ class Policy(models.Model):
     company_id = fields.Many2one('res.company', required=True, default=lambda s: s.env.company, ondelete='restrict')
     lead_days = fields.Integer(default=30, required=True)
     owner_id = fields.Many2one('res.users', string='Default Renewal Owner', check_company=True)
+    certificate_cursor = fields.Integer(default=0, readonly=True)
+    order_cursor = fields.Integer(default=0, readonly=True)
+    work_cursor = fields.Integer(default=0, readonly=True)
     _company_unique = models.Constraint('UNIQUE(company_id)', 'One renewal policy per company.')
     _lead_check = models.Constraint('CHECK(lead_days >= 0 AND lead_days <= 365)', 'Reminder lead time must be between 0 and 365 days.')
 
@@ -19,6 +25,11 @@ class Policy(models.Model):
     def _check_owner(self):
         for record in self:
             _validate_owner(record.owner_id, record.company_id)
+
+    def write(self, vals):
+        if {'certificate_cursor', 'order_cursor', 'work_cursor'} & vals.keys():
+            raise AccessError('Scan cursors are controlled by the scheduler.')
+        return super().write(vals)
 
 
 def _validate_owner(owner, company):
@@ -154,7 +165,7 @@ class Renewal(models.Model):
         if not work and state in ('covered', 'cancelled'):
             return self.browse()
         if not work:
-            owner = next((c.owner_id for c in versions if c.owner_id and c.owner_id.active and not c.owner_id.share and company in c.owner_id.company_ids and c.owner_id.has_group('gt_supplier_certificate_gate.group_user')), policy.owner_id if policy and policy.owner_id.active else self.env['res.users'])
+            owner = next((c.owner_id for c in versions if c.owner_id and c.owner_id.active and not c.owner_id.share and company in c.owner_id.company_ids and c.owner_id.has_group('gt_supplier_certificate_gate.group_user')), policy.owner_id if policy and policy.owner_id.active and not policy.owner_id.share and company in policy.owner_id.company_ids and policy.owner_id.has_group('gt_supplier_certificate_gate.group_user') else self.env['res.users'])
             vals = {'company_id': company.id, 'supplier_id': supplier.id, 'type_id': kind.id, 'expiry': expiry, 'owner_id': owner.id, 'due_date': max(today, expiry - timedelta(days=7)) if expiry else today, 'state': state}
             # Partial unique index arbitrates concurrent creation. A real database
             # serialization conflict is retried by Odoo, never silently swallowed.
@@ -177,28 +188,32 @@ class Renewal(models.Model):
     def _refresh_company(self, company):
         # Demand scope: outstanding RFQs / pending approvals and explicitly
         # maintained supplier certificate relationships for active required types.
+        policy = self.env['gt.certificate.policy'].search([('company_id', '=', company.id)], limit=1)
+        if not policy:
+            policy = self.env['gt.certificate.policy'].create({'company_id': company.id})
         active_types = self.env['gt.certificate.requirement'].search([('company_id', '=', company.id), ('active', '=', True)]).type_id
-        keys = set()
-        last_id = 0
-        while True:
-            certificates = self.env['gt.supplier.certificate'].search([('company_id', '=', company.id), ('type_id', 'in', active_types.ids), ('id', '>', last_id)], order='id', limit=200)
-            if not certificates:
-                break
-            keys.update((c.supplier_id.id, c.type_id.id) for c in certificates)
-            last_id = certificates[-1].id
-        orders = self.env['purchase.order'].search([('company_id', '=', company.id), ('state', 'in', ['draft', 'sent', 'to approve'])])
+        certificates = self.env['gt.supplier.certificate'].search([('company_id', '=', company.id), ('type_id', 'in', active_types.ids), ('id', '>', policy.certificate_cursor)], order='id', limit=200)
+        orders = self.env['purchase.order'].search([('company_id', '=', company.id), ('state', 'in', ['draft', 'sent', 'to approve']), ('id', '>', policy.order_cursor)], order='id', limit=200)
+        works = self.search([('company_id', '=', company.id), ('state', 'not in', ['covered', 'cancelled']), ('id', '>', policy.work_cursor)], order='id', limit=200)
+        keys = {(c.supplier_id.id, c.type_id.id) for c in certificates}
         for order in orders:
             lines = order.order_line.filtered(lambda l: not l.display_type and l.product_id and l.product_qty > 0)
             requirements = self.env['gt.certificate.requirement']._for_categories(lines.product_id.categ_id, company)
             for types in requirements.values():
                 keys.update((order.partner_id.id, type_id) for type_id in types.ids)
-        keys.update((w.supplier_id.id, w.type_id.id) for w in self.search([('company_id', '=', company.id), ('state', 'not in', ['covered', 'cancelled'])]))
+            if any(requirements.values()):
+                order.action_gt_check_certificates()
+        keys.update((w.supplier_id.id, w.type_id.id) for w in works)
         for supplier_id, type_id in sorted(keys):
-            with self.env.cr.savepoint():
-                self._sync_key(company, self.env['res.partner'].browse(supplier_id), self.env['gt.certificate.type'].browse(type_id))
-        # Future effective renewals become visible in snapshots on this daily run.
-        for supplier_id, type_id in keys:
-            self.env['gt.supplier.certificate']._recheck_orders(company, self.env['res.partner'].browse(supplier_id), self.env['gt.certificate.type'].browse(type_id))
+            try:
+                with self.env.cr.savepoint():
+                    self._sync_key(company, self.env['res.partner'].browse(supplier_id), self.env['gt.certificate.type'].browse(type_id))
+            except (UserError, ValidationError):
+                # Expected invalid owner/relationship errors are isolated. Unexpected
+                # exceptions propagate so the scheduler records a genuine failure.
+                _logger.warning('Invalid renewal relationship: company=%s supplier=%s type=%s', company.id, supplier_id, type_id)
+        super(Policy, policy).write({'certificate_cursor': certificates[-1].id if len(certificates) == 200 else 0, 'order_cursor': orders[-1].id if len(orders) == 200 else 0, 'work_cursor': works[-1].id if len(works) == 200 else 0})
+        return any(len(records) == 200 for records in (certificates, orders, works))
 
     @api.model
     def _cron_renewals(self):
@@ -206,9 +221,12 @@ class Renewal(models.Model):
         # or client-driven company list. No PDF is read and no PO is confirmed.
         for company in self.env['res.company'].search([]):
             scoped = self.with_context(allowed_company_ids=company.ids)
-            scoped._refresh_company(company)
-            if self.env.context.get('cron_id') and not self.env['ir.cron']._commit_progress(1):
-                return
+            for batch in range(10):
+                more = scoped._refresh_company(company)
+                if self.env.context.get('cron_id') and not self.env['ir.cron']._commit_progress(1, remaining=1 if more else 0):
+                    return
+                if not more:
+                    break
 
 
 class Activity(models.Model):
@@ -263,6 +281,11 @@ class Certificate(models.Model):
             scoped = certificate.sudo().with_context(allowed_company_ids=certificate.company_id.ids)
             scoped.env['gt.certificate.renewal']._sync_key(scoped.company_id, scoped.supplier_id, scoped.type_id)
             scoped._recheck_orders(scoped.company_id, scoped.supplier_id, scoped.type_id)
+
+    def _upload(self, content):
+        result = super()._upload(content)
+        self._after_review()
+        return result
 
     def action_approve(self):
         result = super().action_approve()
