@@ -21,6 +21,14 @@ class Policy(models.Model):
     _company_unique = models.Constraint('UNIQUE(company_id)', 'One renewal policy per company.')
     _lead_check = models.Constraint('CHECK(lead_days >= 0 AND lead_days <= 365)', 'Reminder lead time must be between 0 and 365 days.')
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        protected = {'certificate_cursor', 'order_cursor', 'work_cursor'}
+        if any(protected & vals.keys() for vals in vals_list):
+            raise AccessError('Scan cursors are controlled by the scheduler.')
+        clean = {k: v for k, v in self.env.context.items() if k not in {'default_' + f for f in protected}}
+        return super(Policy, self.with_context(clean)).create(vals_list)
+
     @api.constrains('owner_id', 'company_id')
     def _check_owner(self):
         for record in self:
@@ -288,7 +296,7 @@ class Certificate(models.Model):
             certificate.check_access('read')
             if not self.env.su and certificate.company_id not in self.env.user.company_ids:
                 raise AccessError('Certificate company is not authorized.')
-            scoped = certificate.sudo().with_context(allowed_company_ids=certificate.company_id.ids)
+            scoped = certificate.sudo().with_context({'allowed_company_ids': certificate.company_id.ids})
             scoped.env['gt.certificate.renewal']._sync_key(scoped.company_id, scoped.supplier_id, scoped.type_id)
             scoped._recheck_orders(scoped.company_id, scoped.supplier_id, scoped.type_id)
 

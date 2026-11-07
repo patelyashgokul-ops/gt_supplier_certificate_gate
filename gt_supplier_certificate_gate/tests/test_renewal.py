@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from unittest.mock import patch
+from psycopg2.errors import CheckViolation
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
@@ -177,7 +178,7 @@ class TestRenewals(TestPurchaseGate):
     def test_policy_validation_and_disabled_scheduler_gate(self):
         self.requirement()
         policy = self.policy()
-        with self.assertRaises(ValidationError), self.cr.savepoint():
+        with self.assertRaises((CheckViolation, ValidationError)), self.cr.savepoint():
             policy.write({'lead_days': -1})
         with self.assertRaises(AccessError):
             policy.with_user(self.buyer).write({'lead_days': 10})

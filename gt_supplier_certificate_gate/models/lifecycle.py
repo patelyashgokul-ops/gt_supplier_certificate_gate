@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import io
+import re
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -91,7 +92,10 @@ class Certificate(models.Model):
         self._lock()
         if self.state != 'draft' or self.evidence_id:
             raise UserError('Evidence already submitted. Create a new version.')
-        data = self.env['gt.certificate.upload']._fields['data'].convert_to_cache(content, self)
+        try:
+            data = self.env['gt.certificate.upload']._fields['data'].convert_to_cache(content, self)
+        except (ValueError, TypeError, binascii.Error) as exc:
+            raise ValidationError('Invalid PDF content encoding.') from exc
         raw = data.content if data else b''
         if not raw or len(raw) > 10 * 1024 * 1024 or not raw.startswith(b'%PDF-') or b'%%EOF' not in raw[-1024:]:
             raise ValidationError('Submit a non-empty PDF up to 10 MiB.')
@@ -112,7 +116,8 @@ class Certificate(models.Model):
                 if len(seen) > 20000:
                     raise ValueError('PDF object limit')
                 if isinstance(node, dict):
-                    if forbidden.intersection(map(str, node.keys())) or str(node.get('/S', '')) in forbidden:
+                    normalize = lambda value: re.sub(r'#([0-9a-fA-F]{2})', lambda m: chr(int(m[1], 16)), str(value))
+                    if forbidden.intersection(normalize(k) for k in node.keys()) or any(normalize(v) in forbidden for v in node.values() if not isinstance(v, (dict, list))):
                         raise ValueError('active content')
                     todo.extend(node.values())
                 elif isinstance(node, (list, tuple)):
