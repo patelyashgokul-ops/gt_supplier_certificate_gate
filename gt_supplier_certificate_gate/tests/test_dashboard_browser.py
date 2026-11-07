@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -122,25 +122,26 @@ class TestDashboardBrowser(HttpCase):
         })();'''.replace('EVIDENCE_URL', json.dumps('/web/content/gt.certificate.evidence/%s/data?download=true' % self.pending.evidence_id.id))
         self.browser_js('/odoo/action-' + str(self.env.ref('gt_supplier_certificate_gate.action_dashboard').id), code, login=self.reviewer.login, timeout=120)
 
-    def test_native_dark_theme_remains_readable(self):
+    def test_community_theme_cookie_keeps_dashboard_readable(self):
         original = ChromeBrowser._wait_code_ok
         def capture(browser, code, timeout, **kwargs):
             result = original(browser, code, timeout, **kwargs)
             metrics = browser._websocket_request('Runtime.evaluate', params={'expression': """(() => {
                 const color = (element, prop) => getComputedStyle(element)[prop];
-                const luminance = css => css.match(/[\d.]+/g).slice(0,3).map(Number).map(v => {v/=255; return v<=0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+                const luminance = css => css.match(/[0-9.]+/g).slice(0,3).map(Number).map(v => {v/=255; return v<=0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
                 const card=document.querySelector('.gt-kpi'); const guide=document.querySelector('.gt-guide');
                 const ratio=(fg,bg)=>{const a=luminance(fg), b=luminance(bg);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);};
                 return {cookie:document.cookie.includes('color_scheme=dark'), cardForeground:color(card,'color'),cardBackground:color(card,'backgroundColor'),cardContrast:ratio(color(card,'color'),color(card,'backgroundColor')),guideContrast:ratio(color(guide.querySelector('h2'),'color'),color(guide,'backgroundColor'))};
             })()""", 'returnByValue': True})['result']['value']
             self.assertTrue(metrics['cookie'])
-            self.assertNotEqual(metrics['cardBackground'], 'rgb(255, 255, 255)')
+            # CE ir.http.color_scheme() returns light; a cookie cannot enable Enterprise appearance.
+            self.assertEqual(metrics['cardBackground'], 'rgb(255, 255, 255)')
             self.assertGreaterEqual(metrics['cardContrast'], 4.5)
             self.assertGreaterEqual(metrics['guideContrast'], 4.5)
             folder=Path('.development/phase5-qa');folder.mkdir(exist_ok=True)
-            (folder/'dark-theme-results.json').write_text(json.dumps(metrics,indent=2),encoding='utf-8')
+            (folder/'community-theme-results.json').write_text(json.dumps(metrics,indent=2),encoding='utf-8')
             screen=browser._websocket_request('Page.captureScreenshot',params={'format':'png'})
-            (folder/'dashboard-dark.png').write_bytes(base64.b64decode(screen['data']))
+            (folder/'dashboard-theme-cookie.png').write_bytes(base64.b64decode(screen['data']))
             return result
         code="""(async()=>{for(let i=0;i<150;i++){if(document.querySelectorAll('.gt-kpi').length===5){console.log('test successful');return;}await new Promise(r=>setTimeout(r,100));}throw new Error('Dark dashboard did not load');})();"""
         with patch.object(ChromeBrowser, '_wait_code_ok', capture):

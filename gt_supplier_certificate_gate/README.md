@@ -1,8 +1,8 @@
-﻿# Supplier Certificate Gate
+# Supplier Certificate Gate
 
 Golok Technology · Odoo 20.0 Community · GT-0006
 
-Development scope implemented: company-specific certificate requirements, restricted PDF submission, independent review, immutable renewal versions, purchase confirmation/final approval enforcement, renewal ownership and native Activities.
+Development scope implemented: company-specific certificate requirements, restricted PDF submission, independent review, immutable renewal versions, purchase confirmation/final approval enforcement, renewal ownership, native Activities and a live Owl compliance dashboard.
 
 ## Initial setup
 
@@ -36,6 +36,14 @@ The cron processes 200-record pages for each source, with persisted per-company 
 
 ## Developer evidence
 
-Tests are under `tests/`; internal reports, commands, logs and disposable runtime data are under `.development/` because this workspace permits writes only within the module root. Exclude `.development`, tests and caches from the future customer-only package in Phase 6. No customer ZIP, dashboard or release assets have been prepared.
+Tests are under `tests/`; internal reports, commands, logs and disposable runtime data are under `.development/` because this workspace permits writes only within the module root. Exclude `.development`, tests and caches from the future customer-only package in Phase 6. No customer ZIP or publication assets have been prepared.
 
 Existing certificate/order rows are locked during confirmation/revocation. PostgreSQL/Odoo retries resolve incompatible concurrent transactions. Administrative configuration changes use normal transaction snapshots; no global serialization of all configuration is claimed. Trusted unrestricted superuser code and direct database writes are outside application-level protection.
+
+## Dashboard
+
+Open Supplier Certificates > Dashboard. Five cards count current blocked orders, currently covered relationships expiring within 30 days, uncovered purchasing-demand requirements, actual pending submissions and overdue open renewal Activities. Blocked means a current certificate gate failure, not a historical failed confirmation attempt. Company, owner, supplier, type, category, status and expiry filters apply on the server. Refresh recalculates authoritative current data; no automatic confirmation occurs.
+
+Coverage counts use distinct company/supplier/certificate-type relationships, deduplicating inherited requirements and historical versions. Approved overlapping or contiguous future evidence extends the coverage horizon only without a gap. The expiry chart uses exclusive missing, expired, 0-7, 8-30 and 31-60 day buckets. Requirement drill-down rows are private timestamped snapshots; reopen from the dashboard for a fresh evaluation. The blocked-order list evaluates current data again when refreshed.
+
+The service rejects scopes exceeding 20,000 records per source rather than displaying partial totals; narrow company or supplier filters. Operational previews show eight records with full native drill-downs. The dashboard uses no confidential PDF reads. Review rights remain separate from manager and renewal-owner roles. Mobile filters can be expanded with the Filters button; standard keyboard controls are supported. The installed Community server supplies the native light appearance; Enterprise dark-theme support is not claimed.
