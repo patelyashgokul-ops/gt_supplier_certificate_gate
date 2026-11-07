@@ -1,4 +1,5 @@
-﻿import { beforeEach, expect, test } from "@odoo/hoot";
+/** @odoo-module **/
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, contains, mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { CertificateDashboard } from "@gt_supplier_certificate_gate/dashboard/dashboard";
 

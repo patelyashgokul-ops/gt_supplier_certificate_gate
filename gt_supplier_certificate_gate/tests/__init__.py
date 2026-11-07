@@ -4,3 +4,5 @@ from . import test_purchase_gate
 from . import test_renewal
 from . import test_dashboard
 from . import test_dashboard_frontend
+from . import test_dashboard_browser
+from . import test_dashboard_performance
