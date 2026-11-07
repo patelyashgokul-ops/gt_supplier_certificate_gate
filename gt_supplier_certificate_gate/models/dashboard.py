@@ -79,7 +79,7 @@ class Dashboard(models.AbstractModel):
         if f.get('supplier_id'):
             order_domain.append(('partner_id', '=', f['supplier_id']))
         orders = self._bounded('purchase.order', order_domain, ['name', 'partner_id', 'company_id', 'state', 'user_id', 'order_line']) if can_purchase else self.env['purchase.order']
-        evaluations = orders._gt_evaluations() if orders else {}
+        evaluations = orders._gt_evaluations(_limit=LIMIT) if orders else {}
         by_key = {}
         key_for = lambda r: (r.company_id.id, r.supplier_id.id, r.type_id.id)
         for cert in versions:
@@ -125,7 +125,7 @@ class Dashboard(models.AbstractModel):
                 # Extend only contiguous, already approved, immutable coverage.
                 approved = cs.filtered(lambda c: c.state == 'verified' and c.evidence_id)
                 for cert in approved.sorted('valid_from'):
-                    if cert.valid_from <= expiry + timedelta(days=1) and cert.valid_until > expiry:
+                    if (cert.valid_from <= expiry or cert.valid_from.toordinal() == expiry.toordinal() + 1) and cert.valid_until > expiry:
                         expiry = cert.valid_until
                 status = 'effective'
             else:
@@ -189,7 +189,7 @@ class Dashboard(models.AbstractModel):
             return {'type': 'ir.actions.act_window', 'name': 'Currently Blocked Purchase Orders', 'res_model': 'purchase.order', 'views': [(self.env.ref('gt_supplier_certificate_gate.view_blocked_list').id, 'list'), (False, 'form')], 'domain': [('id', 'in', list(data['blocked']))], 'context': context}
         if metric in ('pending', 'overdue'):
             records = data[metric]
-            return {'type': 'ir.actions.act_window', 'name': 'Pending Verification' if metric == 'pending' else 'Overdue Follow-ups', 'res_model': records._name, 'views': [(False, 'list'), (False, 'form')], 'domain': [('id', 'in', records.ids)], 'context': context}
+            return {'type': 'ir.actions.act_window', 'name': 'Pending Verification' if metric == 'pending' else 'Overdue Follow-ups', 'res_model': records._name, 'views': [(self.env.ref('gt_supplier_certificate_gate.view_pending_verification_list').id if metric == 'pending' else False, 'list'), (False, 'form')], 'domain': [('id', 'in', records.ids)], 'context': context}
         selected = [r for r in data['rows'].values() if r['relevant'] and (metric == 'coverage' or metric == 'expiring' and r['status'] == 'effective' and r['days'] <= 30 or metric == 'missing' and r['demand'] and r['status'] != 'effective' or metric == 'bucket_' + r['bucket'])]
         stamp = fields.Datetime.now()
         vals = []

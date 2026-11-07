@@ -50,7 +50,7 @@ class Purchase(models.Model):
         super(Purchase, self).write({'write_date': fields.Datetime.now()})
         self.flush_recordset(['write_date'])
 
-    def _gt_evaluations(self):
+    def _gt_evaluations(self, _limit=None):
         """Request-local batch preparation; enforcement still locks and reads fresh."""
         self.check_access('read')
         prepared = {}
@@ -58,7 +58,9 @@ class Purchase(models.Model):
             categories = orders.order_line.product_id.categ_id
             requirements = self.env['gt.certificate.requirement']._for_categories(categories, company)
             type_ids = {i for types in requirements.values() for i in types.ids}
-            versions = self.env['gt.supplier.certificate'].search([('company_id', '=', company.id), ('supplier_id', 'in', orders.partner_id.ids), ('type_id', 'in', list(type_ids))])
+            versions = self.env['gt.supplier.certificate'].search([('company_id', '=', company.id), ('supplier_id', 'in', orders.partner_id.ids), ('type_id', 'in', list(type_ids))], limit=_limit + 1 if _limit else None)
+            if _limit and len(versions) > _limit:
+                raise UserError('Reporting scope is too large. Narrow the company or supplier filter; no partial totals are displayed.')
             by_supplier = versions.grouped('supplier_id')
             for order in orders:
                 prepared[order.id] = order._gt_evaluate(_prepared=(requirements, by_supplier.get(order.partner_id, versions.browse())))
